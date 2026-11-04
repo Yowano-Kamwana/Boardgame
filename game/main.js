@@ -3,6 +3,7 @@ import { createBoard } from './board3d.js';
 import { createNet } from './net.js';
 import { portraitDataURL } from './models.js';
 import { botAction } from './ai.js';
+import * as SND from './sound.js';
 import * as E from './engine.js';
 import {
   CARDS, CHARACTERS, BIOMES, RES, RES_LABEL, WEATHER, SCENARIOS, MONSTERS, UPGRADES, HORROR_MAX, DIRS,
@@ -25,6 +26,77 @@ function h(tag, attrs = {}, ...kids) {
 }
 const tok = (r, cls = 'tok') => h('img', { class: cls, src: `${A}ui/token-${r}.png`, alt: RES_LABEL[r] });
 const costEl = (cost) => h('span', { class: 'cost' }, Object.entries(cost).map(([r, n]) => h('span', { title: `${n} ${RES_LABEL[r]}` }, n, tok(r))));
+// Small line icons for the tray and the table buttons (24px grid, drawn with the current text colour).
+const ICONS = {
+  move: 'M8 3h5v8l6 3v4H5v-4l3-2z M5 18v2h14v-2',
+  search: 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 0 0 0-13z M15.5 15.5 21 21',
+  gather: 'M3 10h18l-2.2 10H5.2z M8 10l4-6 4 6 M9 14v3 M15 14v3',
+  attack: 'M14.5 3H21v6.5L10 20.5 3.5 14z M6 15l3 3 M3 21l3-3',
+  cleanse: 'M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z M19 3v4 M17 5h4',
+  heart: 'M12 20s-7.5-4.6-7.5-10.2A4 4 0 0 1 12 7.3a4 4 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z',
+  outpost: 'M3 20 12 4l9 16z M12 4v16 M9 20l3-5 3 5',
+  rest: 'M19.5 14.5A8 8 0 1 1 9.5 4.5a6.5 6.5 0 0 0 10 10z',
+  chest: 'M4 10h16v10H4z M4 10l1.5-5h13L20 10 M10.5 13h3v3h-3z',
+  train: 'M12 3l2.6 5.6 6.1.7-4.5 4.1 1.2 6L12 16.4l-5.4 3 1.2-6-4.5-4.1 6.1-.7z',
+  build: 'M13 4.5l6.5 6.5-2.8 2.8-6.5-6.5z M10.2 9.8 3.5 16.5l3 3 6.7-6.7',
+  quest: 'M7 4h10.5A1.5 1.5 0 0 1 19 5.5V18a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M9 9h6 M9 12.5h6 M9 16h3',
+  heal: 'M12 5v14 M5 12h14',
+  beacon: 'M12 2.5v3 M5.5 6l2 2 M18.5 6l-2 2 M9 21h6l-1.4-10h-3.2z M8 21h8',
+  end: 'M6 3h12 M6 21h12 M7 3c0 5.5 10 5.5 10 9s-10 3.5-10 9 M17 3c0 5.5-10 5.5-10 9s10 3.5 10 9',
+  book: 'M4 5.5C6.5 4 9.5 4 12 6c2.5-2 5.5-2 8-.5V19c-2.5-1.5-5.5-1.5-8 .5-2.5-2-5.5-2-8-.5z M12 6v13.5',
+  recenter: 'M12 3v3 M12 18v3 M3 12h3 M18 12h3 M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8z',
+  rules: 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7v.5 M12 17.5v.5 M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z',
+  gear: 'M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6z M12 2.5v3 M12 18.5v3 M2.5 12h3 M18.5 12h3 M5.3 5.3l2.1 2.1 M16.6 16.6l2.1 2.1 M5.3 18.7l2.1-2.1 M16.6 7.4l2.1-2.1',
+  leave: 'M14 4H5v16h9 M10 12h11 M17.5 8.5 21 12l-3.5 3.5',
+};
+const ico = (name) => {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'ico'); svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', ICONS[name]);
+  svg.append(path);
+  return svg;
+};
+const iconBtn = (name, label, onclick) => h('button', { class: 'icon-btn', title: label, 'aria-label': label, onclick }, ico(name));
+// A tray button: an icon over a short label.
+const tb = (icon, label, onclick, { cls = '', disabled = false, title = '' } = {}) =>
+  h('button', { class: 'btn tray-btn ' + cls, disabled, title: title || null, onclick }, h('span', { class: 'ti' }, typeof icon === 'string' ? ico(icon) : icon), h('span', { class: 'tl' }, label));
+function setJournal(v) {
+  journalOpen = v;
+  const j = $('#hud .journal');
+  if (j) { j.classList.toggle('open', v); j.setAttribute('aria-hidden', String(!v)); }
+  $('#hud .journal-btn')?.setAttribute('aria-expanded', String(v));
+  if (v) SND.play('card');
+}
+
+// Settings: sound, music, ambience, board atmosphere and graphics quality.
+function showSettings() {
+  const sw = (label, sub, key, apply) => {
+    const b = h('button', { class: 'switch', role: 'switch', 'aria-checked': String(prefs[key] !== false), 'aria-label': label, onclick: () => {
+      prefs[key] = prefs[key] === false; savePrefs();
+      b.setAttribute('aria-checked', String(prefs[key] !== false));
+      apply();
+    } }, h('span', { class: 'knob' }));
+    return h('div', { class: 'set-row' }, h('div', {}, h('strong', {}, label), h('small', {}, sub)), b);
+  };
+  const applySound = () => { SND.init(); SND.setOptions(soundPrefs()); };
+  const applyLook = () => { look.atmosphere = prefs.atmosphere !== false; look.quality = prefs.quality || look.quality; board?.setOptions({ ...look }); };
+  const q = h('div', { class: 'seg', role: 'group', 'aria-label': 'Graphics quality' }, ['high', 'low'].map((v) => h('button', {
+    'aria-pressed': String(look.quality === v),
+    onclick: (e) => { prefs.quality = v; savePrefs(); applyLook(); [...q.children].forEach((x) => x.setAttribute('aria-pressed', String(x === e.currentTarget))); },
+  }, v === 'high' ? 'High' : 'Low')));
+  openModal(h('div', { class: 'panel settings-panel' },
+    h('h2', {}, 'Settings'),
+    h('div', { class: 'set-group' }, h('div', { class: 'eyebrow' }, 'Sound'),
+      sw('Sound effects', 'Dice, cards, footsteps and monsters', 'sfx', applySound),
+      sw('Forest ambience', 'Wind, birdsong by day, crickets at night', 'ambience', applySound),
+      sw('Music', 'A quiet score for the expedition', 'music', applySound)),
+    h('div', { class: 'set-group' }, h('div', { class: 'eyebrow' }, 'The table'),
+      sw('Board atmosphere', 'Fog over unexplored land, fireflies and spores, dust, pulsing corruption', 'atmosphere', applyLook),
+      h('div', { class: 'set-row' }, h('div', {}, h('strong', {}, 'Graphics'), h('small', {}, 'High adds glow, a miniature-style blur and the detailed figures. Low is lighter for phones.')), q)),
+    h('div', { class: 'modal-actions' }, h('button', { class: 'btn primary', onclick: closeModal }, 'Done'))));
+}
+
 const hearts = (n, max) => h('span', { 'aria-label': `${n} of ${max} lives` }, Array.from({ length: max }, (_, i) => h('i', { class: 'heart' + (i < n ? '' : ' empty') })));
 const portraits = {};
 const faceOf = (c) => {
@@ -35,6 +107,19 @@ const faceOf = (c) => {
 const HUNGER_TEXT = { rep: 'Missing Food costs Reputation first, then a life', life: 'Missing Food costs a life' };
 const prefs = (() => { try { return JSON.parse(localStorage.getItem('rootbound-prefs') || '{}'); } catch { return {}; } })();
 const savePrefs = () => { try { localStorage.setItem('rootbound-prefs', JSON.stringify(prefs)); } catch {} };
+
+// Look and sound. Phones and small screens start on Low graphics.
+const look = {
+  atmosphere: prefs.atmosphere !== false,
+  quality: prefs.quality || (matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 700 ? 'low' : 'high'),
+};
+const soundPrefs = () => ({ sfx: prefs.sfx !== false, ambience: prefs.ambience !== false, music: prefs.music !== false });
+SND.setOptions(soundPrefs());
+// Browsers only allow audio after a tap or key press.
+const wake = () => SND.init();
+addEventListener('pointerdown', wake, { passive: true });
+addEventListener('keydown', wake);
+addEventListener('click', (e) => { if (e.target.closest?.('.btn, .m-item, .medal, .journal-btn, .j-tabs button, .switch')) SND.play('click'); });
 
 let NET = null;          // { remote, local }
 let store = null;        // the backend this game lives in
@@ -47,6 +132,10 @@ let busy = false;
 let hoverKey = null;
 const queue = [];
 let draining = false;
+let peek = null;          // party medallion opened for details
+let journalOpen = false;  // the journal drawer starts closed
+let journalTab = 'goal';
+let endSounded = false;
 const settings = { spawnEvery: prefs.spawnRate || 3, lives: prefs.lives || 2, hunger: prefs.hunger || 'rep', scenario: prefs.scenario || 'skyship', mode: prefs.mode || 'standard', quests: !!prefs.quests };
 
 // ------------------------------------------------------------------ toasts & modal
@@ -169,6 +258,7 @@ async function runAi() {
 
 // ------------------------------------------------------------------ title screen
 function showTitle() {
+  SND.setScene('title'); SND.setPhase('day'); endSounded = false; peek = null; journalOpen = false;
   if (unwatch) { unwatch(); unwatch = null; }
   game = shown = null; gameId = null;
   $('#hud').classList.add('hidden');
@@ -228,7 +318,8 @@ function showTitle() {
     item('Begin an Expedition', 'Gather a party and set out', () => openDrawer('Begin an Expedition', setup), true),
     item(online ? 'Join an Expedition' : 'Continue', online ? 'Friends’ games and your own' : 'Saved games on this device', () => openDrawer(online ? 'Join an Expedition' : 'Saved Expeditions', join), false, badge),
     item('The Mushroomfolk', 'Meet the five inventors', () => openDrawer('The Mushroomfolk', folk)),
-    item('How to Play', 'The rules of the Everdeep', showGuide));
+    item('How to Play', 'The rules of the Everdeep', showGuide),
+    item('Settings', 'Sound, music and graphics', showSettings));
   const stage = h('div', { class: 'hero-stage', 'aria-hidden': 'true' },
     h('img', { class: 'hero-art', src: `${A}ui/cover-hd.jpg`, alt: '' }),
     h('div', { class: 'hero-fire' }), h('i', { class: 'hero-eye', style: 'left:70.75%;top:20.7%' }), h('i', { class: 'hero-eye', style: 'left:74.15%;top:19.7%' }));
@@ -380,11 +471,12 @@ function onState(s) {
   const prevSeq = game?.seq;
   game = s;
   if (s.phase === 'lobby') { showRoom(s); return; }
+  SND.setScene('game');
   $('#room').classList.add('hidden');
   $('#title').classList.add('hidden');
   $('#hud').classList.remove('hidden');
   if (!board) {
-    board = createBoard($('#stage'), { assetBase: A, onHexClick, onHexHover: (k) => { hoverKey = k; renderTip(); } });
+    board = createBoard($('#stage'), { assetBase: A, onHexClick, onHexHover: (k) => { hoverKey = k; renderTip(); }, ...look });
     board.setState(s);
     board.resetView();
   }
@@ -405,11 +497,13 @@ async function drain() {
         const m = s.monsters.find((x) => x.id === e.id) || shown.monsters.find((x) => x.id === e.id);
         const name = m ? MONSTERS[m.kind].name : 'The monster';
         toast(`${name} ${st.blocked ? 'is blocked' : 'steps ' + DIRS[st.roll - 1].name}${st.trap ? ' into a snare!' : ''}`);
+        SND.play('monsterStep');
       } });
     } else {
       board.setState(s);
     }
     shown = s;
+    SND.setPhase(E.phaseOf(s));
     renderHud(s);
   }
   draining = false;
@@ -418,6 +512,11 @@ async function drain() {
 
 async function narrate(e, s) {
   const who = (c) => s.players.find((p) => p.char === c)?.name || c;
+  const sfx = { gain: 'gain', lose: 'lose', hurt: 'hurt', dice: 'dice', reveal: 'flip', move: 'step', corrupt: 'corrupt', cleanse: 'cleanse', quest: 'quest', questDone: 'quest',
+    chainDone: 'quest', chain: 'gain', build: 'build', improve: 'build', outpost: 'build', advance: 'quest', revive: 'cleanse', spawn: 'growl', strike: 'hurt', kill: 'gain',
+    outpostLost: 'corrupt', questFail: 'corrupt', escape: 'growl', lost: 'hurt', trap: 'build' }[e.t];
+  if (sfx) SND.play(sfx);
+  if (e.t === 'life' && e.delta < 0) SND.play('hurt');
   switch (e.t) {
     case 'gain': toast([`${who(e.who)} +${e.n}`, tok(e.res)], 'good'); break;
     case 'lose': toast([`${who(e.who)} −${e.n}`, tok(e.res)], 'bad'); break;
@@ -442,6 +541,9 @@ async function narrate(e, s) {
       break;
     }
     case 'night': {
+      SND.setPhase('night');
+      SND.play('card');
+      await board.drawCard('night');
       const done = openModal(h('div', { class: 'card-wrap' }, cardEl(e.id, 'night'), h('div', { class: 'card-note' }, 'Night falls. This card lasts the whole Night.')));
       await Promise.race([done, new Promise((r) => setTimeout(r, 3200))]);
       closeModal();
@@ -461,6 +563,8 @@ async function narrate(e, s) {
     case 'dice': toast(`${who(e.who)} rolls: ${e.faces.map((f) => RISK_LABEL[f]).join(', ')}`); break;
     case 'corrupt': if (e.why !== 'spread') toast(`Corruption spreads (${e.horror}/${HORROR_MAX})`, 'bad'); break;
     case 'round': {
+      SND.play('card');
+      await board.drawCard('weather');
       toast(`Round ${e.round} · ${e.phase === 'night' ? 'Night' : 'Day'} · ${WEATHER[e.weather].title}`);
       const done = openModal(h('div', { class: 'card-wrap' }, cardEl(e.weather, 'weather'),
         h('div', { class: 'card-note' }, WEATHER[e.weather].text)));
@@ -478,6 +582,8 @@ async function narrate(e, s) {
       break;
     }
     case 'card': {
+      SND.play('card');
+      await board.drawCard('discovery');
       const p = s.pending;
       if (p && p.kind === 'choice' && p.card === e.id && p.who === e.who) break; // the choice dialog will show it
       const c = CARDS[e.id];
@@ -551,43 +657,54 @@ function renderHud(s, animating = false) {
   const scen = SCENARIOS[s.settings.scenario];
   const home = '0,0';
 
-  // top bar
+  // top bar: round medallion, weather, night, horror track, table buttons
   const track = h('div', { class: 'track', 'aria-label': `Horror track ${s.horror} of ${HORROR_MAX}` },
     Array.from({ length: HORROR_MAX }, (_, i) => h('i', {
       class: [i < s.horror ? 'on' : '', (i + 1) % s.settings.spawnEvery === 0 && i + 1 < HORROR_MAX ? 'spawn' : '', i + 1 === HORROR_MAX ? 'king' : ''].join(' '),
       title: i + 1 === HORROR_MAX ? 'The Root King awakens' : (i + 1) % s.settings.spawnEvery === 0 ? 'A monster appears' : '',
     })));
   const top = h('header', { class: 'topbar' },
-    h('div', { class: 'brand' }, 'ROOTBOUND'),
-    h('div', { class: 'round-chip' }, h('span', { class: 'ph ' + phase }), `Round ${s.round} · ${phase === 'night' ? 'Night' : 'Day'}`),
+    h('div', { class: 'round-medal ' + phase, title: `Round ${s.round} · ${phase === 'night' ? 'Night' : 'Day'}` },
+      h('span', { class: 'ph ' + phase }), h('b', {}, s.round), h('small', {}, phase === 'night' ? 'Night' : 'Day')),
     w && h('button', { class: 'weather-chip', onclick: () => openModal(h('div', { class: 'card-wrap' }, cardEl(s.weather, 'weather'), h('div', { class: 'card-note' }, w.text), h('button', { class: 'btn', onclick: closeModal }, 'Close'))) },
       h('img', { src: A + (w.draft ? w.draft.art : `cards/${s.weather}.jpg`), alt: '' }), h('span', {}, w.title, h('small', {}, w.text))),
     s.night && h('button', { class: 'weather-chip night-chip', onclick: () => openModal(h('div', { class: 'card-wrap' }, cardEl(s.night, 'night'), h('button', { class: 'btn', onclick: closeModal }, 'Close'))) },
       h('span', {}, NIGHT[s.night].title, h('small', {}, NIGHT[s.night].text))),
     h('div', { class: 'horror' },
-      h('div', { class: 'lbl' }, h('span', {}, 'Corruption · Horror Track'), h('b', {}, `${s.horror} / ${HORROR_MAX}`)), track),
+      h('div', { class: 'lbl' }, h('span', {}, 'Horror'), h('b', {}, `${s.horror} / ${HORROR_MAX}`)), track),
     h('div', { class: 'top-actions' },
-      h('button', { class: 'btn small', onclick: () => board.resetView(), title: 'Recenter the camera' }, 'Recenter'),
-      h('button', { class: 'btn small', onclick: showGuide }, 'Rules'),
-      h('button', { class: 'btn small', onclick: showTitle }, 'Leave')));
+      iconBtn('recenter', 'Recenter the camera', () => board.resetView()),
+      iconBtn('rules', 'Rules', showGuide),
+      iconBtn('gear', 'Settings', showSettings),
+      iconBtn('leave', 'Leave the table', showTitle)));
 
-  // party
-  const party = h('section', { class: 'panel' }, h('h3', {}, 'The Party'),
-    s.players.map((p, i) => {
-      const slots = E.slotsUsed(p.bag);
-      return h('div', { class: 'pcard' + (i === s.turn && s.phase === 'playing' ? ' active' : '') + (p.lost ? ' lost' : '') },
-        h('img', { class: 'face', src: faceOf(p.char), alt: '' }),
-        h('div', {},
-          h('div', { class: 'nm', title: [CHARACTERS[p.char].ability + ': ' + CHARACTERS[p.char].abilityText, ...CHARACTERS[p.char].levels.slice(0, p.level).map((l) => l.name + ': ' + l.text)].join('\n') },
-            h('strong', {}, p.name), h('small', {}, CHARACTERS[p.char].role), h('span', { class: 'tag' }, `Lv ${p.level || 0}`),
-            mine(p.char) && store.online && h('span', { class: 'tag you' }, 'You'), p.ai && h('span', { class: 'tag' }, 'AI'), p.lost && h('span', { class: 'tag lost' }, 'Lost')),
-          h('div', { class: 'stats' }, hearts(p.lives, E.maxLives(s)), h('span', { title: 'Reputation' }, `✦ ${p.rep}`),
-            h('span', { class: 'slots', title: 'Backpack slots used' }, `bag ${slots}/${p.slots}`)),
-          h('div', { class: 'bag' }, RES.filter((r) => p.bag[r] > 0).map((r) => h('span', {}, tok(r), p.bag[r])),
-            !RES.some((r) => p.bag[r] > 0) && h('span', { class: 'slots' }, 'Empty backpack'))));
-    }));
+  // party: a column of portrait medallions; tap one for that Mushroomfolk's details
+  const party = h('nav', { class: 'party', 'aria-label': 'The party' }, s.players.map((p, i) => {
+    const active = i === s.turn && s.phase === 'playing';
+    return h('button', {
+      class: 'medal' + (active ? ' active' : '') + (p.lost ? ' lost' : '') + (peek === p.char ? ' peeked' : ''),
+      style: `--ring:${CHARACTERS[p.char].base}`, 'aria-pressed': String(peek === p.char),
+      'aria-label': `${p.name}, ${CHARACTERS[p.char].name}: ${p.lives} lives, ${p.rep} Reputation${p.lost ? ', Lost' : ''}`,
+      onclick: () => { peek = peek === p.char ? null : p.char; renderHud(shown); },
+    },
+      h('span', { class: 'face' }, h('img', { src: faceOf(p.char), alt: '' })),
+      h('span', { class: 'lv', title: 'Level' }, p.level || 0),
+      p.ai ? h('span', { class: 'rib' }, 'AI') : mine(p.char) && store.online ? h('span', { class: 'rib you' }, 'You') : null,
+      h('span', { class: 'hp' }, hearts(p.lives, E.maxLives(s))),
+      h('span', { class: 'nm' }, p.name));
+  }));
+  const pp = peek && s.players.find((p) => p.char === peek);
+  const peekCard = pp && h('section', { class: 'panel peek' },
+    h('button', { class: 'x', 'aria-label': 'Close', onclick: () => { peek = null; renderHud(shown); } }, '×'),
+    h('div', { class: 'nm' }, h('strong', {}, pp.name), h('small', {}, `${CHARACTERS[pp.char].name} · ${CHARACTERS[pp.char].role}`)),
+    h('div', { class: 'stats' }, hearts(pp.lives, E.maxLives(s)), h('span', { title: 'Reputation' }, `✦ ${pp.rep}`), h('span', {}, `Level ${pp.level || 0}`),
+      h('span', { class: 'slots', title: 'Backpack slots used' }, `bag ${E.slotsUsed(pp.bag)}/${pp.slots}`), pp.lost && h('span', { class: 'tag lost' }, 'Lost')),
+    h('div', { class: 'bag' }, RES.filter((r) => pp.bag[r] > 0).map((r) => h('span', {}, tok(r), pp.bag[r])),
+      !RES.some((r) => pp.bag[r] > 0) && h('span', { class: 'slots' }, 'Empty backpack')),
+    h('p', { class: 'ab' }, h('b', {}, CHARACTERS[pp.char].ability + ': '), CHARACTERS[pp.char].abilityText),
+    CHARACTERS[pp.char].levels.slice(0, pp.level).map((l) => h('p', { class: 'ab' }, h('b', {}, l.name + ': '), l.text)));
 
-  // skyship + storage + log
+  // journal pages: goal, quests, stores, workshop, chronicle
   const atHome = cur && cur.at === home;
   const parts = h('div', { class: 'parts' }, scen.parts.map((part) => {
     const done = s.built[part.id];
@@ -596,17 +713,17 @@ function renderHud(s, animating = false) {
       h('div', {}, h('div', { class: 'pn' }, part.name), done ? h('small', {}, `Built by ${s.players.find((p) => p.char === done)?.name}`) : costEl(E.partCost(s, part))),
       !done && myTurn && h('button', { class: 'btn small primary', disabled: !can, title: atHome ? 'Uses Workshop storage first, then your backpack' : 'Build at the Workshop', onclick: () => act({ type: 'build', part: part.id }) }, 'Build'));
   }));
-  const ship = h('section', { class: 'panel' }, h('h3', {}, scen.name),
+  const ship = h('section', { class: 'page' }, h('h3', {}, scen.name),
     h('img', { class: 'ship-art', src: A + scen.art, alt: '' }),
     h('p', { class: 'note', style: 'margin:6px 0 0' }, scen.goal), parts,
-    s.finale?.pylons && h('p', { class: 'note', style: 'margin:8px 0 0;color:var(--gold-bright)' }, `Pylons held: ${s.finale.held}/3 rounds. Keep a Mushroomfolk on each clean Pylon at the end of the round.`),
-    s.finale?.cage && h('p', { class: 'note', style: 'margin:8px 0 0;color:var(--gold-bright)' }, 'The Cage is ready. Bring the Root King to 0 health to capture it.'),
-    s.settings.scenario === 'skyship' && s.finale?.ready && h('p', { class: 'note', style: 'margin:8px 0 0;color:var(--gold-bright)' },
-      `Provisions: ${s.storage.food}/${s.players.filter((x) => !x.lost).length} Food in storage. Everyone standing must be at the Workshop.`),
-    myTurn && o.launch && h('button', { class: 'btn primary', style: 'margin-top:8px;width:100%', onclick: () => act({ type: 'launch' }) }, 'Launch the Skyship'));
-  const questPanel = s.quest && h('section', { class: 'panel' }, h('h3', {}, `Quests · ${s.quest.done}/${QUESTS_TO_WIN} done`),
+    s.finale?.pylons && h('p', { class: 'note', style: 'margin:8px 0 0;color:var(--gold-deep)' }, `Pylons held: ${s.finale.held}/3 rounds. Keep a Mushroomfolk on each clean Pylon at the end of the round.`),
+    s.finale?.cage && h('p', { class: 'note', style: 'margin:8px 0 0;color:var(--gold-deep)' }, 'The Cage is ready. Bring the Root King to 0 health to capture it.'),
+    s.settings.scenario === 'skyship' && s.finale?.ready && h('p', { class: 'note', style: 'margin:8px 0 0;color:var(--gold-deep)' },
+      `Provisions: ${s.storage.food}/${s.players.filter((x) => !x.lost).length} Food in storage. Everyone standing must be at the Workshop.`));
+  const urgentQuest = s.quest?.active.some((q) => q.deadline - s.round <= 1);
+  const questPanel = s.quest && h('section', { class: 'page' }, h('h3', {}, `Quests · ${s.quest.done}/${QUESTS_TO_WIN} done`),
     !s.quest.active.length && h('p', { class: 'note', style: 'margin:0' }, 'No active quests. Flip tiles to uncover quest marks, or Search for Story cards.'),
-    s.quest.chain > 0 && s.quest.chain < 4 && h('div', { class: 'part quest-row' }, h('div', {}, h('div', { class: 'pn' }, `The Broken Compass \u00b7 step ${s.quest.chain}/4`),
+    s.quest.chain > 0 && s.quest.chain < 4 && h('div', { class: 'part quest-row' }, h('div', {}, h('div', { class: 'pn' }, `The Broken Compass · step ${s.quest.chain}/4`),
       h('small', { class: 'note' }, `Next clue: Search a ${BIOMES[CHAIN_BIOME[s.quest.chain]].name} tile. No time limit; counts as 2 quests.`))),
     h('div', { class: 'parts' }, s.quest.active.map((q) => {
       const { d, left, text } = questLine(s, q);
@@ -618,7 +735,7 @@ function renderHud(s, animating = false) {
           q.at && h('button', { class: 'btn small', onclick: () => board.focus(q.at) }, 'Find')));
     })),
     !E.questsOk(s) && h('p', { class: 'note', style: 'margin:6px 0 0' }, `Every invention part needs an Artifact. You need ${QUESTS_TO_WIN} completed quests to win.`));
-  const improvements = h('section', { class: 'panel' }, h('h3', {}, 'Workshop improvements'),
+  const improvements = h('section', { class: 'page' }, h('h3', {}, 'Workshop improvements'),
     h('div', { class: 'parts' }, Object.entries(WORKSHOP).map(([id, w]) => {
       const done = s.upgrades?.[id];
       const can = myTurn && o.workshop.includes(id) && Object.entries(w.cost).every(([r, n]) => s.storage[r] + cur.bag[r] >= n);
@@ -628,23 +745,33 @@ function renderHud(s, animating = false) {
     })));
   const canWithdraw = myTurn && atHome && !s.pending;
   const op = cur && s.outposts?.[cur.at];
-  const opPanel = op && h('section', { class: 'panel' }, h('h3', {}, `Outpost (${RES.reduce((a, r) => a + op.store[r], 0)}/${OUTPOST.capacity})`),
+  const opPanel = op && h('section', { class: 'page' }, h('h3', {}, `Outpost (${RES.reduce((a, r) => a + op.store[r], 0)}/${OUTPOST.capacity})`),
     h('p', { class: 'note', style: 'margin:0 0 6px' }, myTurn ? 'Tap a resource to take it. Use the buttons below to stash from your backpack.' : 'Stored at this Outpost.'),
     h('div', { class: 'store' }, RES.map((r) => h('button', { disabled: !myTurn || s.pending || !op.store[r], onclick: () => act({ type: 'take', res: r }), title: `Take 1 ${RES_LABEL[r]}` }, tok(r), op.store[r]))),
     myTurn && !s.pending && h('div', { class: 'actions', style: 'margin-top:6px' }, RES.filter((r) => cur.bag[r] > 0).map((r) =>
       h('button', { class: 'btn small', onclick: () => act({ type: 'stash', res: r }) }, 'Stash ', tok(r)))));
-  const storage = h('section', { class: 'panel' }, h('h3', {}, 'Workshop storage'),
+  const storage = h('section', { class: 'page' }, h('h3', {}, 'Workshop storage'),
     h('div', { class: 'store' }, RES.map((r) => h('button', {
       disabled: !canWithdraw || !s.storage[r], title: canWithdraw ? `Take 1 ${RES_LABEL[r]} into your backpack` : RES_LABEL[r],
       onclick: () => act({ type: 'withdraw', res: r }),
     }, tok(r), s.storage[r]))),
     canWithdraw && h('p', { class: 'note', style: 'margin:6px 0 0' }, 'Tap a resource to take 1 into your backpack.'));
-  const log = h('section', { class: 'panel' }, h('h3', {}, 'Chronicle'),
-    h('div', { class: 'log' }, s.log.slice(-30).reverse().map((l) => h('div', {}, h('b', {}, `R${l.r} `), l.text))));
+  const log = h('section', { class: 'page' }, h('h3', {}, 'Chronicle'),
+    h('div', { class: 'log' }, s.log.slice(-40).reverse().map((l) => h('div', {}, h('b', {}, `R${l.r} `), l.text))));
+  const pages = { goal: ['Goal', [ship]], quests: s.quest && ['Quests', [questPanel]], stores: ['Stores', [opPanel, storage]], workshop: ['Workshop', [improvements]], log: ['Log', [log]] };
+  if (!pages[journalTab]) journalTab = 'goal';
+  const journal = h('aside', { class: 'journal' + (journalOpen ? ' open' : ''), 'aria-label': 'Journal', 'aria-hidden': String(!journalOpen) },
+    h('div', { class: 'j-tabs', role: 'tablist' }, Object.entries(pages).filter(([, v]) => v).map(([id, [label]]) =>
+      h('button', { role: 'tab', 'aria-selected': String(id === journalTab), class: id === 'quests' && urgentQuest ? 'urgent' : '', onclick: () => { journalTab = id; renderHud(shown); } }, label))),
+    h('button', { class: 'x', 'aria-label': 'Close the journal', onclick: () => setJournal(false) }, '×'),
+    h('div', { class: 'j-page' }, pages[journalTab][1]));
+  const journalBtn = h('button', { class: 'journal-btn' + (urgentQuest ? ' alert' : ''), 'aria-expanded': String(journalOpen), onclick: () => setJournal(!journalOpen) },
+    ico('book'), h('span', {}, 'Journal'));
+  const openPage = (id) => { journalTab = id; journalOpen = true; renderHud(shown); };
 
-  // action bar
-  const bar = h('section', { class: 'panel actionbar' + (prefs.barMin ? ' min' : ''), 'aria-label': 'Turn actions' });
-  // Slide the action bar away (tap the handle, or swipe it down; swipe up to bring it back).
+  // action tray
+  const bar = h('section', { class: 'tray' + (prefs.barMin ? ' min' : ''), 'aria-label': 'Turn actions' });
+  // Slide the tray away (tap the handle, or swipe it down; swipe up to bring it back).
   const setMin = (v) => { prefs.barMin = v; savePrefs(); bar.classList.toggle('min', v); handle.setAttribute('aria-expanded', String(!v)); handle.lastChild.textContent = v ? 'Show actions' : 'Hide'; };
   const handle = h('button', { class: 'bar-handle', 'aria-expanded': String(!prefs.barMin), onclick: () => setMin(!prefs.barMin) },
     h('span', { class: 'grip', 'aria-hidden': 'true' }), h('span', {}, prefs.barMin ? 'Show actions' : 'Hide'));
@@ -662,8 +789,8 @@ function renderHud(s, animating = false) {
   } else if (cur) {
     const T = cur.turn || { mp: 0, dec: 0 };
     const pips = h('div', { class: 'pips' },
-      h('span', {}, 'Moves ', h('b', {}, T.mp)),
-      h('span', {}, 'Decisions ', h('i', { class: 'pip' + (T.dec > 0 ? ' on' : '') }), ' ', h('i', { class: 'pip' + (T.dec > 1 ? ' on' : '') })));
+      h('span', { class: 'mv', title: 'Moves left' }, ico('move'), h('b', {}, T.mp)),
+      h('span', { title: 'Decisions left' }, h('i', { class: 'pip' + (T.dec > 0 ? ' on' : '') }), h('i', { class: 'pip' + (T.dec > 1 ? ' on' : '') })));
     let hint;
     if (animating) hint = 'Resolving…';
     else if (!myTurn) hint = s.pending ? `${cur.name} is choosing a card…` : `Waiting for ${cur.name} (${CHARACTERS[cur.char].name})…`;
@@ -671,68 +798,75 @@ function renderHud(s, animating = false) {
     else if (o.fuel) hint = 'Set out (eat Food for 3 moves), or stay and act. Then spend your 2 decisions.';
     else if (o.move) hint = 'Tap a glowing tile to move. Numbers show the cost; “?” is unexplored.';
     else hint = T.dec > 0 ? 'Spend your decisions, or end your turn.' : 'All done. End your turn.';
+    const myBag = h('span', { class: 'mybag', title: 'Backpack' }, RES.filter((r) => cur.bag[r] > 0).map((r) => h('span', {}, tok(r), cur.bag[r])));
     bar.append(h('div', { class: 'turn-line' },
-      h('span', { class: 'who' }, myTurn ? `${cur.name}’s turn` : cur.name), h('span', { class: 'hint' }, hint), pips));
+      h('img', { class: 'who-face', src: faceOf(cur.char), alt: '' }),
+      h('span', { class: 'who' }, myTurn ? `${cur.name}’s turn` : cur.name), h('span', { class: 'hint' }, hint), myBag, pips));
     if (myTurn && !s.pending) {
       const acts = h('div', { class: 'actions' });
       const here = s.tiles[cur.at];
       if (o.fuel) {
         const hasFood = cur.bag.food > 0 || (atHome && s.storage.food > 0);
         acts.append(
-          h('button', { class: 'btn primary', disabled: !hasFood, onclick: () => act({ type: 'fuel', how: 'food' }) }, tok('food'), 'Eat → 3 moves'),
-          h('button', { class: 'btn', disabled: cur.lives < 2, title: cur.lives < 2 ? 'Your last life can’t be spent' : '', onclick: () => act({ type: 'fuel', how: 'life' }) }, 'Spend a life → 3'),
-          h('button', { class: 'btn', onclick: () => act({ type: 'fuel', how: 'free' }) }, 'Trudge → 1'));
+          tb(tok('food'), 'Eat → 3 moves', () => act({ type: 'fuel', how: 'food' }), { cls: 'primary', disabled: !hasFood }),
+          tb('heart', 'Spend a life → 3', () => act({ type: 'fuel', how: 'life' }), { disabled: cur.lives < 2, title: cur.lives < 2 ? 'Your last life can’t be spent' : '' }),
+          tb('move', 'Trudge → 1', () => act({ type: 'fuel', how: 'free' })));
       }
-      if (o.search) acts.append(h('button', { class: 'btn', onclick: () => act({ type: 'search' }), title: `Draw from the ${here.corrupted || here.biome === 'corrupted' || here.searched ? 'Blight' : BIOMES[here.biome].name} deck` },
-        here.corrupted || here.biome === 'corrupted' || here.searched ? 'Search (Blight deck)' : 'Search'));
-      if (o.gather) o.gather.forEach((y, i) => acts.append(h('button', { class: 'btn', onclick: () => act({ type: 'gather', option: i }), title: here.harvest ? 'This land is already disturbed: a risk die will be rolled' : 'Fresh land' },
-        'Gather ', costEl(here.harvest >= 2 ? Object.fromEntries(Object.entries(y).map(([r, n]) => [r, Math.max(1, n - 1)])) : y), here.harvest ? ' ⚠' : '')));
+      if (o.search) {
+        const blight = here.corrupted || here.biome === 'corrupted' || here.searched;
+        acts.append(tb('search', blight ? 'Search (Blight)' : 'Search', () => act({ type: 'search' }), { title: `Draw from the ${blight ? 'Blight' : BIOMES[here.biome].name} deck` }));
+      }
+      if (o.gather) o.gather.forEach((y, i) => acts.append(tb('gather', ['Gather ', costEl(here.harvest >= 2 ? Object.fromEntries(Object.entries(y).map(([r, n]) => [r, Math.max(1, n - 1)])) : y), here.harvest ? ' ⚠' : ''],
+        () => act({ type: 'gather', option: i }), { title: here.harvest ? 'This land is already disturbed: a risk die will be rolled' : 'Fresh land' })));
       for (const q of o.quest || []) {
         const d = QUESTS[q.id];
-        const label = q.kind === 'deliver' ? ['Deliver ', costEl(d.need), ` (${d.title})`] : q.kind === 'escort' ? `Take charge: ${d.title}` : `Investigate: ${d.title}`;
+        const label = q.kind === 'deliver' ? ['Deliver ', costEl(d.need)] : q.kind === 'escort' ? 'Take charge' : 'Investigate';
         const can = q.kind !== 'deliver' || Object.entries(d.need).every(([r, n]) => cur.bag[r] + (atHome ? s.storage[r] : 0) >= n);
-        acts.append(h('button', { class: 'btn primary', disabled: !can, onclick: () => act({ type: 'quest', qid: q.qid }) }, label));
+        acts.append(tb('quest', label, () => act({ type: 'quest', qid: q.qid }), { cls: 'primary', disabled: !can, title: d.title }));
       }
       for (const m of o.attack) {
         const [q0, r0] = E.parse(cur.at), [q1, r1] = E.parse(m.at);
         const d = DIRS.find((x) => x.dq === q1 - q0 && x.dr === r1 - r0);
-        acts.append(h('button', { class: 'btn danger', onclick: () => act({ type: 'attack', id: m.id }), title: 'Friends on or beside its tile add a die each' },
-          `Attack ${MONSTERS[m.kind].name} (${m.hp}${m.stuck ? ', snared' : ''}) ${d ? d.name : 'here'}`));
+        acts.append(tb('attack', `Attack ${MONSTERS[m.kind].name} (${m.hp}${m.stuck ? ', snared' : ''}) ${d ? d.name : 'here'}`, () => act({ type: 'attack', id: m.id }),
+          { cls: 'danger', title: 'Friends on or beside its tile add a die each' }));
       }
       const where = (k) => k === cur.at ? 'here' : (() => {
         const [q0, r0] = E.parse(cur.at), [q1, r1] = E.parse(k);
         const d = DIRS.find((x) => x.dq === q1 - q0 && x.dr === r1 - r0);
         return d ? d.name : 'nearby';
       })();
-      for (const k of o.cleanse) acts.append(h('button', { class: 'btn', onclick: () => act({ type: 'cleanse', at: k }), title: '+1 Reputation' },
-        `Cleanse ${where(k)} `, cur.char === 'sporewick' ? '(free)' : costEl({ essence: 1 })));
-      for (const t of o.revive) acts.append(h('button', { class: 'btn primary', onclick: () => act({ type: 'revive', target: t.char }) }, `Revive ${t.name} (${where(t.at)})`));
+      for (const k of o.cleanse) acts.append(tb('cleanse', [`Cleanse ${where(k)} `, cur.char === 'sporewick' ? '(free)' : costEl({ essence: 1 })], () => act({ type: 'cleanse', at: k }), { title: '+1 Reputation' }));
+      for (const t of o.revive) acts.append(tb('heart', `Revive ${t.name} (${where(t.at)})`, () => act({ type: 'revive', target: t.char }), { cls: 'primary' }));
       if (o.outpost) {
         const can = Object.entries(OUTPOST.cost).every(([r, n]) => cur.bag[r] >= n);
-        acts.append(h('button', { class: 'btn', disabled: !can, title: 'A forward base: store up to ' + OUTPOST.capacity + ' items, Rest here, and travel between Outposts and the Workshop for 1 move. Corruption destroys it.', onclick: () => act({ type: 'outpost' }) },
-          'Build Outpost ', costEl(OUTPOST.cost)));
+        acts.append(tb('outpost', ['Outpost ', costEl(OUTPOST.cost)], () => act({ type: 'outpost' }),
+          { disabled: !can, title: 'A forward base: store up to ' + OUTPOST.capacity + ' items, Rest here, and travel between Outposts and the Workshop for 1 move. Corruption destroys it.' }));
       }
-      if (o.rest) acts.append(h('button', { class: 'btn', onclick: () => act({ type: 'rest' }) }, 'Rest (+1 life)'));
-      if (o.deposit && RES.some((r) => r !== 'food' && cur.bag[r] > 0)) acts.append(h('button', { class: 'btn', onclick: () => act({ type: 'deposit' }), title: 'Food stays in your backpack' }, 'Unpack into storage'));
+      if (op) acts.append(tb('chest', 'Outpost store', () => openPage('stores'), { title: 'Take or stash items here' }));
+      if (o.rest) acts.append(tb('rest', 'Rest +1 life', () => act({ type: 'rest' })));
+      if (o.deposit && RES.some((r) => r !== 'food' && cur.bag[r] > 0)) acts.append(tb('chest', 'Unpack', () => act({ type: 'deposit' }), { title: 'Unpack into storage. Food stays in your backpack' }));
+      if (canWithdraw) acts.append(tb('chest', 'Storage', () => openPage('stores'), { title: 'Take resources from the Workshop' }));
+      if (o.build?.length && scen.parts.some((p) => !s.built[p.id])) acts.append(tb('build', 'Build a part', () => openPage('goal'), { title: 'Open the invention plans' }));
+      if (o.workshop?.length) acts.append(tb('build', 'Improve', () => openPage('workshop'), { title: 'Workshop improvements' }));
       if (o.upgrade && cur.rep >= UPGRADES.backpack.rep) {
         const up = UPGRADES.backpack;
         const can = cur.rep >= up.rep && Object.entries(up.cost).every(([r, n]) => s.storage[r] + cur.bag[r] >= n);
-        acts.append(h('button', { class: 'btn', disabled: !can, title: up.text, onclick: () => act({ type: 'upgrade', id: 'backpack' }) }, `Backpack +2 (✦${up.rep} `, costEl(up.cost), ')'));
+        acts.append(tb('chest', [`Backpack +2 (✦${up.rep} `, costEl(up.cost), ')'], () => act({ type: 'upgrade', id: 'backpack' }), { disabled: !can, title: up.text }));
       }
       if (o.advance) {
         const lv = o.advance;
         const can = cur.rep >= lv.rep && Object.entries(lv.cost).every(([r, n]) => s.storage[r] + cur.bag[r] >= n);
-        acts.append(h('button', { class: 'btn' + (can ? ' primary' : ''), disabled: !can, title: `${lv.name}: ${lv.text}`, onclick: () => act({ type: 'advance' }) },
-          `Train: ${lv.name} (✦${lv.rep} `, costEl(lv.cost), ')'));
+        acts.append(tb('train', [`Train: ${lv.name} (✦${lv.rep} `, costEl(lv.cost), ')'], () => act({ type: 'advance' }), { cls: can ? 'primary' : '', disabled: !can, title: `${lv.name}: ${lv.text}` }));
       }
-      for (const t of o.heal) acts.append(h('button', { class: 'btn', onclick: () => act({ type: 'heal', target: t.char }) }, `Remedy for ${t.name}`));
-      for (const t of o.recall) acts.append(h('button', { class: 'btn primary', onclick: () => act({ type: 'recall', target: t.char }) }, `Beacon: bring ${t.name} home`));
-      if (atHome && cur.bag.food > 0) acts.append(h('button', { class: 'btn', onclick: () => act({ type: 'store', res: 'food' }), title: 'Move 1 Food from your backpack into storage' }, 'Store 1 ', tok('food')));
+      for (const t of o.heal) acts.append(tb('heal', `Remedy for ${t.name}`, () => act({ type: 'heal', target: t.char })));
+      for (const t of o.recall) acts.append(tb('beacon', `Beacon: ${t.name}`, () => act({ type: 'recall', target: t.char }), { cls: 'primary', title: `Bring ${t.name} home` }));
+      if (atHome && cur.bag.food > 0) acts.append(tb('chest', ['Store 1 ', tok('food')], () => act({ type: 'store', res: 'food' }), { title: 'Move 1 Food from your backpack into storage' }));
+      const extras = h('div', { class: 'extras' });
       if (o.craft) {
         const sel = h('select', { 'aria-label': 'Craft an item', class: 'btn small' }, h('option', { value: '' }, 'Craft…'),
           Object.entries(CRAFTS).map(([id, c]) => h('option', { value: id }, `${c.name} (${Object.entries(c.cost).map(([r, n]) => `${n} ${RES_LABEL[r]}`).join(', ')}): ${c.text}`)));
         sel.addEventListener('change', () => { if (sel.value) act({ type: 'craft', id: sel.value }); });
-        acts.append(sel);
+        extras.append(sel);
       }
       if (o.convert) {
         const have = RES.filter((r) => cur.bag[r] + (atHome ? s.storage[r] : 0) >= 2);
@@ -740,7 +874,7 @@ function renderHud(s, animating = false) {
           const sel = h('select', { 'aria-label': 'Convert resources', class: 'btn small' }, h('option', { value: '' }, 'Convert 2→1…'),
             have.flatMap((f) => RES.filter((t) => t !== f && t !== 'artifact').map((t) => h('option', { value: `${f}|${t}` }, `2 ${RES_LABEL[f]} → 1 ${RES_LABEL[t]}`))));
           sel.addEventListener('change', () => { const [from, to] = sel.value.split('|'); if (from) act({ type: 'convert', from, to }); });
-          acts.append(sel);
+          extras.append(sel);
         }
       }
       const friends = s.players.filter((p) => p !== cur && p.at === cur.at && !p.lost);
@@ -749,20 +883,16 @@ function renderHud(s, animating = false) {
           h('option', { value: '' }, 'Give…'),
           friends.flatMap((f) => RES.filter((r) => cur.bag[r] > 0).map((r) => h('option', { value: `${f.char}|${r}` }, `1 ${RES_LABEL[r]} → ${f.name}`))));
         sel.addEventListener('change', () => { const [to, res] = sel.value.split('|'); if (to) act({ type: 'give', to, res }); });
-        acts.append(sel);
+        extras.append(sel);
       }
-      acts.append(h('button', { class: 'btn' + (T.dec === 0 && !o.move ? ' primary' : ''), onclick: () => act({ type: 'endTurn' }), title: '' },
-        'End turn'));
+      if (myTurn && o.launch) acts.prepend(tb('beacon', 'Launch the Skyship', () => act({ type: 'launch' }), { cls: 'primary' }));
+      acts.append(tb('end', 'End turn', () => act({ type: 'endTurn' }), { cls: 'end' + (T.dec === 0 && !o.move ? ' primary' : '') }));
       bar.append(acts);
+      if (extras.childNodes.length) bar.append(extras);
     }
   }
 
-  const left = h('aside', { class: 'side left' + (prefs.tab === 'party' ? ' open' : '') }, party);
-  const right = h('aside', { class: 'side right' + (prefs.tab === 'ship' ? ' open' : '') }, ship, questPanel, opPanel, storage, improvements, log);
-  const tabs = h('div', { class: 'mobile-tabs' },
-    h('button', { class: 'btn small', onclick: () => { prefs.tab = prefs.tab === 'party' ? '' : 'party'; savePrefs(); renderHud(shown); } }, 'Party'),
-    h('button', { class: 'btn small', onclick: () => { prefs.tab = prefs.tab === 'ship' ? '' : 'ship'; savePrefs(); renderHud(shown); } }, 'Goal'));
-  hud.replaceChildren(top, left, right, tabs, bar, h('div', { id: 'tile-tip', class: 'panel tile-tip hidden' }));
+  hud.replaceChildren(top, party, peekCard || '', journalBtn, journal, bar, h('div', { id: 'tile-tip', class: 'panel tile-tip hidden' }));
   renderTip();
 
   // move highlights
@@ -792,6 +922,7 @@ function renderHud(s, animating = false) {
 
   if (s.phase === 'over' && !animating && !$('#modal .end')) {
     const won = s.result.result === 'won';
+    if (!endSounded) { endSounded = true; SND.play(won ? 'win' : 'over'); }
     openModal(h('div', { class: 'panel end', style: 'padding:24px;display:grid;gap:14px;justify-items:center' },
       h('img', { src: won ? `${A}ui/skyship.jpg` : `${A}cards/root-king.jpg`, alt: '', style: 'width:min(280px,70vw);border-radius:12px' }),
       h('h2', {}, won ? 'The Everdeep is saved' : 'The forest has won'),

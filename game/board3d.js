@@ -4,6 +4,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { makeMushroomfolk, makeMonster, makeDie, glowSprite, makeBase, loadFigure, monsterBase } from './models.js';
 import { BIOMES, CHARACTERS, DIRS, MONSTERS } from './data.js';
 import { allKeys, parse, useBoard, boardRadius } from './engine.js';
+import { veinTexture, hashKey, makeBlob, makeFog, createParticles, makeDust } from './atmosphere.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { HorizontalTiltShiftShader } from 'three/addons/shaders/HorizontalTiltShiftShader.js';
+import { VerticalTiltShiftShader } from 'three/addons/shaders/VerticalTiltShiftShader.js';
 
 const R = 1;          // hex radius (center → corner)
 const H = 0.16;       // tile thickness
@@ -96,9 +104,11 @@ function hpSprite(hp, max) {
   return s;
 }
 
-export function createBoard(container, { assetBase = 'assets/', onHexClick, onHexHover } = {}) {
+export function createBoard(container, { assetBase = 'assets/', onHexClick, onHexHover, atmosphere = true, quality = 'high' } = {}) {
+  // atmosphere: veins pulse, particles, fog, dust. quality 'high': glow + miniature blur, full figures.
+  const opts = { atmosphere, quality };
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.quality === 'high' ? 2 : 1.25));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -130,7 +140,7 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
   const sun = new THREE.DirectionalLight('#ffd9a0', 2.4);
   sun.position.set(-6, 14, 7);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(opts.quality === 'high' ? 2048 : 1024, opts.quality === 'high' ? 2048 : 1024);
   Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 40 });
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 0.02;
@@ -149,6 +159,20 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
   table.position.y = -H / 2 - 0.001;
   table.receiveShadow = true;
   scene.add(table);
+
+  // post-processing (high quality): a soft glow on bright things and a miniature-style blur at the edges
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.42, 0.55, 0.86);
+  composer.addPass(bloom);
+  const hBlur = new ShaderPass(HorizontalTiltShiftShader), vBlur = new ShaderPass(VerticalTiltShiftShader);
+  hBlur.uniforms.r.value = vBlur.uniforms.r.value = 0.5;
+  composer.addPass(hBlur); composer.addPass(vBlur);
+  composer.addPass(new OutputPass());
+
+  // atmosphere layers
+  const particles = createParticles(scene);
+  const dusts = new Set();
 
   // textures
   const loader = new THREE.TextureLoader();
@@ -187,6 +211,11 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
   function buildTile(k, t) {
     const g = new THREE.Group();
     g.position.copy(hexPos(k));
+    // laid by hand: each tile sits a touch off-true
+    const hk = hashKey(k);
+    g.rotation.y = ((hk % 1000) / 1000 - 0.5) * 0.05;
+    g.position.x += (((hk >> 10) % 100) / 100 - 0.5) * 0.03;
+    g.position.z += (((hk >> 17) % 100) / 100 - 0.5) * 0.03;
     const flip = new THREE.Group();
     g.add(flip);
     const sideMat = new THREE.MeshStandardMaterial({ color: sideColor(t, t.revealed), roughness: 0.7 });
@@ -212,26 +241,26 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     flip.add(rim);
     flip.rotation.x = t.revealed ? 0 : Math.PI;
     [side, front, back].forEach((m) => { m.userData.key = k; });
-    // corruption dressing (hidden until corrupted)
+    // corruption: dark rot and glowing veins creeping across the tile (hidden until corrupted)
     const blight = new THREE.Group();
     blight.visible = false;
-    const blightRing = new THREE.Mesh(outlineGeo, new THREE.MeshBasicMaterial({ color: '#ff2f92', transparent: true, opacity: 0.75 }));
-    blightRing.rotation.x = -Math.PI / 2;
-    blightRing.position.y = H / 2 + 0.008;
-    blight.add(blightRing);
-    const thornMat = new THREE.MeshStandardMaterial({ color: '#2a0f22', emissive: '#c4126b', emissiveIntensity: 0.7, roughness: 0.4 });
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + 0.5;
-      const th = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.28 + (i % 3) * 0.08, 5), thornMat);
-      th.position.set(Math.cos(a) * 0.78, H / 2 + 0.14, Math.sin(a) * 0.78);
-      th.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
-      th.castShadow = true;
-      blight.add(th);
-    }
-    const haze = glowSprite('#ff2f92', 1.9, 0.28);
-    haze.position.y = 0.35;
-    blight.add(haze);
+    const vtex = veinTexture(hk);
+    const rot = new THREE.Mesh(capGeo, new THREE.MeshBasicMaterial({ map: vtex, color: '#1a0414', transparent: true, opacity: 0.7, depthWrite: false }));
+    rot.rotation.set(-Math.PI / 2, 0, (hk % 6) * (Math.PI / 3));
+    rot.position.y = H / 2 + 0.005;
+    rot.scale.setScalar(1.06);
+    const veins = new THREE.Mesh(capGeo, new THREE.MeshBasicMaterial({ map: vtex, color: '#ff3da0', transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
+    veins.rotation.copy(rot.rotation);
+    veins.position.y = H / 2 + 0.007;
+    const haze = glowSprite('#ff2f92', 1.4, 0.16);
+    haze.position.y = 0.3;
+    blight.add(rot, veins, haze);
+    blight.userData.veins = veins;
     g.add(blight);
+    // mist over the unknown
+    const fog = makeFog(hk);
+    fog.visible = !t.revealed && opts.atmosphere;
+    g.add(fog);
     // harvest markers
     // snare marker
     const trap = new THREE.Group();
@@ -257,7 +286,7 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     hl.scale.setScalar(1.02);
     g.add(hl);
     tileRoot.add(g);
-    const obj = { k, g, flip, side, sideMat, front, rim, blight, harvest, trap, hl, label: null, data: { ...t } };
+    const obj = { k, g, flip, side, sideMat, front, rim, blight, fog, harvest, trap, hl, label: null, data: { ...t } };
     tiles[k] = obj;
     return obj;
   }
@@ -282,6 +311,8 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     obj.sideMat.color.copy(sideColor(t, t.revealed));
     obj.rim.visible = t.revealed && t.biome !== 'workshop';
     obj.blight.visible = !!t.corrupted;
+    obj.front.material.color.set(t.corrupted && t.biome !== 'corrupted' ? '#a8909c' : '#ffffff'); // corruption drains colour
+    obj.fog.visible = !t.revealed && opts.atmosphere;
     obj.trap.visible = !!t.trap;
     if (obj.data.harvest !== t.harvest) setHarvest(obj, t.harvest);
     obj.data = { ...t };
@@ -298,6 +329,14 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     });
     obj.flip.position.y = 0;
     obj.rim.visible = obj.data.biome !== 'workshop';
+    obj.fog.visible = false;
+    if (opts.atmosphere) {
+      const d = makeDust();
+      d.position.copy(obj.g.position).setY(H / 2 + 0.05);
+      d.userData.start = performance.now();
+      scene.add(d);
+      dusts.add(d);
+    }
   }
 
   // ---------------- pieces
@@ -335,9 +374,10 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
   function upgradeMonster(o, kind) {
     const def = MONSTERS[kind];
     if (!def.model) return;
-    loadFigure(assetBase + def.model, def.size || 0.8, true).then((fig) => {
+    loadFigure(assetBase + modelPath(def.model), def.size || 0.8, true).then((fig) => {
       if (!o.g.parent) return; // defeated before it finished loading
       o.g.clear();
+      o.g.add(makeBlob(0.9));
       o.g.add(monsterBase(!!def.boss));
       fig.rotation.y = def.turn || 0;
       fig.position.y = 0.06;
@@ -349,19 +389,24 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     }).catch(() => { /* keep the simple figure */ });
   }
 
+  // Low quality uses the light figures in models/lite/.
+  const modelPath = (m) => (opts.quality === 'high' ? m : m.replace('models/', 'models/lite/'));
+
   function syncPieces(state) {
     for (const p of state.players || []) {
       let g = pieces[p.char];
       if (!g) {
         g = makeMushroomfolk(p.char, CHARACTERS[p.char]);
+        g.add(makeBlob(0.8));
         g.scale.setScalar(1.15);
         pieces[p.char] = g;
         pieceRoot.add(g);
         const def = CHARACTERS[p.char];
         // Swap the simple figure for the sculpted one once it has loaded.
-        if (def.model) loadFigure(assetBase + def.model).then((fig) => {
+        if (def.model) loadFigure(assetBase + modelPath(def.model)).then((fig) => {
           const old = pieces[p.char];
           const ng = new THREE.Group();
+          ng.add(makeBlob(0.8));
           ng.add(makeBase(def));
           fig.position.y = 0.06;
           ng.add(fig);
@@ -523,8 +568,23 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     scene.background.lerp(new THREE.Color(lightTarget.bg), 0.03);
     scene.fog.color.copy(scene.background);
     hearth.intensity = 5 + Math.sin(time * 7) * 0.4 + Math.sin(time * 13) * 0.25;
-    for (const o of Object.values(tiles)) if (o.blight.visible) {
-      o.blight.children[0].material.opacity = 0.5 + Math.sin(time * 2.2 + o.g.position.x) * 0.25;
+    for (const o of Object.values(tiles)) {
+      if (o.blight.visible) o.blight.userData.veins.material.opacity = opts.atmosphere ? 0.55 + Math.sin(time * 1.6 + o.g.position.x * 1.7) * 0.35 : 0.75;
+      if (o.fog.visible) for (const f of o.fog.children) {
+        f.position.x = Math.sin(time * 0.15 + f.userData.phase) * 0.12;
+        f.rotation.z = time * 0.04 + f.userData.phase;
+        f.material.opacity = 0.24 + Math.sin(time * 0.4 + f.userData.phase) * 0.07;
+      }
+    }
+    if (opts.atmosphere) particles.update(time);
+    for (const d of dusts) {
+      const t = Math.min(1, (performance.now() - d.userData.start) / 900);
+      for (const s of d.children) {
+        s.position.copy(s.userData.dir).multiplyScalar(0.2 + ease(t) * 0.9);
+        s.scale.setScalar(0.25 + t * 0.5);
+        s.material.opacity = 0.5 * (1 - t);
+      }
+      if (t >= 1) { scene.remove(d); dusts.delete(d); }
     }
     if (activeRing.visible && pieces[activeRing.userData.char]) {
       const g = pieces[activeRing.userData.char];
@@ -540,12 +600,16 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     const lim = boardRadius() > 3 ? 9.5 : 7;
     t.x = Math.max(-lim, Math.min(lim, t.x)); t.z = Math.max(-lim, Math.min(lim, t.z)); t.y = 0;
     controls.update();
-    renderer.render(scene, camera);
+    if (opts.quality === 'high') composer.render(); else renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
   function resize() {
     const w = container.clientWidth, h = container.clientHeight;
     renderer.setSize(w, h, false);
+    composer.setPixelRatio(renderer.getPixelRatio());
+    composer.setSize(w, h);
+    hBlur.uniforms.h.value = 1.6 / w;
+    vBlur.uniforms.v.value = 1.6 / h;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
@@ -641,16 +705,101 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     }
   }
 
+  function syncParticles(state) {
+    particles.setVisible(opts.atmosphere);
+    if (!opts.atmosphere || !state.tiles) return;
+    const list = [];
+    for (const [k, t] of Object.entries(state.tiles)) if (t.revealed) {
+      const p = hexPos(k);
+      list.push({ x: p.x, z: p.z, kind: t.corrupted && t.biome !== 'corrupted' ? 'blight' : t.biome });
+    }
+    particles.sync(list);
+  }
+
+  // Decks on the table's edge: Discovery, Weather and Night. Drawing lifts the top card.
+  const deckRoot = new THREE.Group();
+  scene.add(deckRoot);
+  const decks = {};
+  function cardBack(label, c1, c2) {
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 360;
+    const g = c.getContext('2d');
+    const grd = g.createLinearGradient(0, 0, 256, 360);
+    grd.addColorStop(0, c1); grd.addColorStop(1, c2);
+    g.fillStyle = grd; g.fillRect(0, 0, 256, 360);
+    g.strokeStyle = '#e0b45a'; g.lineWidth = 8; g.strokeRect(12, 12, 232, 336);
+    g.lineWidth = 2; g.strokeRect(24, 24, 208, 312);
+    g.beginPath(); g.arc(128, 160, 46, 0, Math.PI * 2); g.stroke();
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; g.beginPath(); g.moveTo(128, 160); g.lineTo(128 + Math.cos(a) * (i % 2 ? 30 : 58), 160 + Math.sin(a) * (i % 2 ? 30 : 58)); g.stroke(); }
+    g.fillStyle = '#f3d48a'; g.font = '700 30px "Cinzel", Georgia, serif'; g.textAlign = 'center';
+    g.fillText(label, 128, 290);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+  function buildDecks() {
+    deckRoot.clear();
+    const x = boardRadius() > 3 ? 8.3 : 6.6;
+    const defs = [['discovery', 'Discovery', '#3b2a12', '#6b4a1e'], ['weather', 'Weather', '#1e3a4a', '#3d6a7a'], ['night', 'Night', '#141a3a', '#2c3466']];
+    defs.forEach(([id, label, c1, c2], i) => {
+      const back = new THREE.MeshStandardMaterial({ map: cardBack(label, c1, c2), roughness: 0.7 });
+      const edge = new THREE.MeshStandardMaterial({ color: '#e9dcc0', roughness: 0.9 });
+      const stack = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.18, 1.26), [edge, edge, back, edge, edge, edge]);
+      stack.position.set(x, -H / 2 + 0.09, -1.6 + i * 1.6);
+      stack.rotation.y = -0.12 + i * 0.08;
+      stack.castShadow = stack.receiveShadow = true;
+      deckRoot.add(stack);
+      decks[id] = { stack, back };
+    });
+  }
+  async function drawCard(kind) {
+    const d = decks[kind];
+    if (!d || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const card = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.26), new THREE.MeshStandardMaterial({ map: d.back.map, side: THREE.DoubleSide }));
+    card.rotation.x = -Math.PI / 2;
+    const from = d.stack.position.clone().setY(0.2);
+    const to = camera.position.clone().lerp(controls.target, 0.55);
+    card.position.copy(from);
+    scene.add(card);
+    await tween(420, (t) => {
+      const e = ease(t);
+      card.position.lerpVectors(from, to, e);
+      card.position.y += Math.sin(Math.PI * t) * 0.8;
+      card.rotation.x = -Math.PI / 2 + e * Math.PI * 0.9;
+    });
+    scene.remove(card);
+    card.geometry.dispose(); card.material.dispose();
+  }
+
+  function setOptions(next) {
+    const reload = next.quality && next.quality !== opts.quality;
+    Object.assign(opts, next);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.quality === 'high' ? 2 : 1.25));
+    resize();
+    if (current) {
+      for (const o of Object.values(tiles)) o.fog.visible = !o.data.revealed && opts.atmosphere;
+      syncParticles(current);
+      if (reload) { // swap figures to the matching detail level
+        for (const g of Object.values(pieces)) pieceRoot.remove(g);
+        for (const o of Object.values(monsters)) pieceRoot.remove(o.g);
+        for (const k of Object.keys(pieces)) delete pieces[k];
+        for (const k of Object.keys(monsters)) delete monsters[k];
+        syncPieces(current);
+      }
+    }
+  }
+
   function setState(state) {
     current = state;
     if (!state.tiles) return;
     useBoard(state);
     controls.maxDistance = boardRadius() > 3 ? 34 : 26;
+    if (deckRoot.userData.r !== boardRadius()) { buildDecks(); deckRoot.userData.r = boardRadius(); }
     for (const k of allKeys()) syncTile(k, state.tiles[k]);
     syncPieces(state);
     lightTarget = LIGHT.day; // night lighting is off for now (LIGHT.night kept for later)
     syncPylons(state);
     syncOutposts(state);
+    syncParticles(state);
     syncQuests(state);
   }
 
@@ -793,5 +942,5 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     camera.position.set(0, 8.6 * k, 11.2 * k);
   }
 
-  return { setState, play, setHighlights, focus, resetView, rollDice, clearDice, get state() { return current; } };
+  return { drawCard, setOptions, setState, play, setHighlights, focus, resetView, rollDice, clearDice, get state() { return current; } };
 }
