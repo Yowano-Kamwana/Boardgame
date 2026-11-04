@@ -1,0 +1,12 @@
+import * as E from '../game/engine.js';
+let s = E.newLobby({ id: 't', name: 't', hostUid: 'u' });
+s = E.joinSeat(s, { uid: 'u', name: 'A', char: 'bramblecap' });
+s = E.startGame(s).state; E.useBoard(s);
+s.weather = 'gentle-rain'; s.monsters = [];
+s = E.act(s, 'bramblecap', { type: 'fuel', how: 'food' }).state;
+const p = s.players[0];
+const r = E.reachable(s, p);
+for (const [k, v] of Object.entries(r)) if (E.dist(k, '0,0') === 1) console.log(k, s.tiles[k].revealed ? s.tiles[k].biome : '?', 'cost', v.cost, 'steps', JSON.stringify(v.steps));
+const k = Object.keys(r).find((k) => E.dist(k, '0,0') === 1 && s.tiles[k].revealed && s.tiles[k].biome === 'forest') || Object.keys(r).find((k) => E.dist(k, '0,0') === 1 && s.tiles[k].revealed);
+s = E.act(s, 'bramblecap', { type: 'move', to: k }).state;
+console.log('moved to', k, s.tiles[k].biome, 'mp left', s.players[0].turn.mp);
