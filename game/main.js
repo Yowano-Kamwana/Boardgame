@@ -197,6 +197,7 @@ function cardEl(id, kind = 'discovery') {
   }
   if (kind === 'monster') return h('img', { class: 'card-face', src: `${A}cards/${MONSTERS[id].card}.jpg`, alt: MONSTERS[id].name });
   const c = CARDS[id];
+  if (c.v2) return h('img', { class: 'card-face v2', src: A + c.img, alt: `${c.title}. ${c.type}, ${c.v2.biome}. ${c.v2.flavor} ${c.v2.text}` });
   if (c.img) return h('img', { class: 'card-face', src: A + c.img, alt: c.title + ' card' });
   const d = c.draft;
   if (c.type === 'story') return draftFace(c.title, `Story \u2022 ${d.biome}`, d.flavor, d.text, d.art, ' quest');
@@ -513,7 +514,7 @@ async function drain() {
 async function narrate(e, s) {
   const who = (c) => s.players.find((p) => p.char === c)?.name || c;
   const sfx = { gain: 'gain', lose: 'lose', hurt: 'hurt', dice: 'dice', reveal: 'flip', move: 'step', corrupt: 'corrupt', cleanse: 'cleanse', quest: 'quest', questDone: 'quest',
-    chainDone: 'quest', chain: 'gain', build: 'build', improve: 'build', outpost: 'build', advance: 'quest', revive: 'cleanse', spawn: 'growl', strike: 'hurt', kill: 'gain',
+    chainDone: 'quest', chain: 'gain', fear: e.delta > 0 ? 'corrupt' : 'cleanse', panic: 'hurt', horror: 'corrupt', build: 'build', improve: 'build', outpost: 'build', advance: 'quest', revive: 'cleanse', spawn: 'growl', strike: 'hurt', kill: 'gain',
     outpostLost: 'corrupt', questFail: 'corrupt', escape: 'growl', lost: 'hurt', trap: 'build' }[e.t];
   if (sfx) SND.play(sfx);
   if (e.t === 'life' && e.delta < 0) SND.play('hurt');
@@ -522,6 +523,9 @@ async function narrate(e, s) {
     case 'lose': toast([`${who(e.who)} −${e.n}`, tok(e.res)], 'bad'); break;
     case 'rep': toast(`${who(e.who)} +${e.delta} Reputation`, 'good'); break;
     case 'life': toast([`${who(e.who)} `, e.delta < 0 ? 'loses a life' : 'recovers a life'], e.delta < 0 ? 'bad' : 'good'); break;
+    case 'fear': toast(e.delta > 0 ? `${who(e.who)} gains Fear (${e.fear}/${E.FEAR_MAX})` : `${who(e.who)} shakes off Fear`, e.delta > 0 ? 'bad' : 'good'); break;
+    case 'panic': toast(`${who(e.who)} panics: loses a life and flees!`, 'bad'); break;
+    case 'horror': toast(`The Horror Track advances (${e.horror}/${HORROR_MAX})`, 'bad'); break;
     case 'lost': toast(`${who(e.who)} is Lost! A friend can revive them on that tile.`, 'bad'); break;
     case 'revive': toast(`${who(e.by)} revives ${who(e.who)}!`, 'good'); break;
     case 'advance': toast(`${who(e.who)} reaches level ${e.level}: ${CHARACTERS[e.who].levels[e.level - 1].name}!`, 'good'); break;
@@ -684,20 +688,21 @@ function renderHud(s, animating = false) {
     return h('button', {
       class: 'medal' + (active ? ' active' : '') + (p.lost ? ' lost' : '') + (peek === p.char ? ' peeked' : ''),
       style: `--ring:${CHARACTERS[p.char].base}`, 'aria-pressed': String(peek === p.char),
-      'aria-label': `${p.name}, ${CHARACTERS[p.char].name}: ${p.lives} lives, ${p.rep} Reputation${p.lost ? ', Lost' : ''}`,
+      'aria-label': `${p.name}, ${CHARACTERS[p.char].name}: ${p.lives} lives, ${p.rep} Reputation${p.fear ? `, ${p.fear} Fear` : ''}${p.lost ? ', Lost' : ''}`,
       onclick: () => { peek = peek === p.char ? null : p.char; renderHud(shown); },
     },
       h('span', { class: 'face' }, h('img', { src: faceOf(p.char), alt: '' })),
       h('span', { class: 'lv', title: 'Level' }, p.level || 0),
       p.ai ? h('span', { class: 'rib' }, 'AI') : mine(p.char) && store.online ? h('span', { class: 'rib you' }, 'You') : null,
       h('span', { class: 'hp' }, hearts(p.lives, E.maxLives(s))),
+      p.fear > 0 && h('span', { class: 'fear', title: `Fear ${p.fear} of ${E.FEAR_MAX}: at ${E.FEAR_MAX} you panic` }, Array.from({ length: p.fear }, () => h('i', {}))),
       h('span', { class: 'nm' }, p.name));
   }));
   const pp = peek && s.players.find((p) => p.char === peek);
   const peekCard = pp && h('section', { class: 'panel peek' },
     h('button', { class: 'x', 'aria-label': 'Close', onclick: () => { peek = null; renderHud(shown); } }, '×'),
     h('div', { class: 'nm' }, h('strong', {}, pp.name), h('small', {}, `${CHARACTERS[pp.char].name} · ${CHARACTERS[pp.char].role}`)),
-    h('div', { class: 'stats' }, hearts(pp.lives, E.maxLives(s)), h('span', { title: 'Reputation' }, `✦ ${pp.rep}`), h('span', {}, `Level ${pp.level || 0}`),
+    h('div', { class: 'stats' }, hearts(pp.lives, E.maxLives(s)), h('span', { title: 'Reputation' }, `✦ ${pp.rep}`), h('span', {}, `Level ${pp.level || 0}`), pp.fear > 0 && h('span', { class: 'tag lost', title: `At ${E.FEAR_MAX} Fear you panic: lose a life and flee` }, `Fear ${pp.fear}/${E.FEAR_MAX}`),
       h('span', { class: 'slots', title: 'Backpack slots used' }, `bag ${E.slotsUsed(pp.bag)}/${pp.slots}`), pp.lost && h('span', { class: 'tag lost' }, 'Lost')),
     h('div', { class: 'bag' }, RES.filter((r) => pp.bag[r] > 0).map((r) => h('span', {}, tok(r), pp.bag[r])),
       !RES.some((r) => pp.bag[r] > 0) && h('span', { class: 'slots' }, 'Empty backpack')),
@@ -843,7 +848,7 @@ function renderHud(s, animating = false) {
           { disabled: !can, title: 'A forward base: store up to ' + OUTPOST.capacity + ' items, Rest here, and travel between Outposts and the Workshop for 1 move. Corruption destroys it.' }));
       }
       if (op) acts.append(tb('chest', 'Outpost store', () => openPage('stores'), { title: 'Take or stash items here' }));
-      if (o.rest) acts.append(tb('rest', 'Rest +1 life', () => act({ type: 'rest' })));
+      if (o.rest) acts.append(tb('rest', cur.lives < E.maxLives(s) ? (cur.fear ? 'Rest +1 life, −1 Fear' : 'Rest +1 life') : 'Rest −1 Fear', () => act({ type: 'rest' })));
       if (o.deposit && RES.some((r) => r !== 'food' && cur.bag[r] > 0)) acts.append(tb('chest', 'Unpack', () => act({ type: 'deposit' }), { title: 'Unpack into storage. Food stays in your backpack' }));
       if (canWithdraw) acts.append(tb('chest', 'Storage', () => openPage('stores'), { title: 'Take resources from the Workshop' }));
       if (o.build?.length && scen.parts.some((p) => !s.built[p.id])) acts.append(tb('build', 'Build a part', () => openPage('goal'), { title: 'Open the invention plans' }));
@@ -985,6 +990,8 @@ function showGuide() {
     h('ul', {},
       h('li', {}, 'If you must lose Food and have none, you lose a life. Missing anything else costs 1 Reputation.'),
       h('li', {}, 'At 0 lives you are Lost and the tile turns corrupt. A friend on your tile can spend a decision to revive you with 1 life.'),
+      h('li', {}, `Some cards give Fear. It does nothing until your third: then you panic, lose a life, flee to a neighbouring tile, and your Fear is cleared. Resting removes 1 Fear.`),
+      h('li', {}, 'When a card says “lose this or that”, you may only pick something you actually have.'),
       h('li', {}, 'Backpacks hold 5 slots: Food and Wood stack 3 per slot, Metal, Crystal and Essence 2, Artifacts 1. Unpack at the Workshop; Food stays with you.')),
     h('h3', {}, 'Camera'),
     h('p', {}, 'Drag to rotate. Right-drag or two fingers to pan. Scroll or pinch to zoom.'),

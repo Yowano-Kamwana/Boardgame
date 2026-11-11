@@ -118,7 +118,7 @@ export function botAction(s) {
       if (s.storage.food < crew && p.bag.food > 0) return { type: 'store', res: 'food' };
       if (o.launch && ok(s, p, { type: 'launch' })) return { type: 'launch' };
     }
-    if (o.rest && p.lives < 2) return { type: 'rest' };
+    if (o.rest && (p.lives < 2 || p.fear >= 2)) return { type: 'rest' };
     if (o.recall?.length) return { type: 'recall', target: o.recall[0].char };
     if (o.advance && ok(s, p, { type: 'advance' })) return { type: 'advance' };
     if (!done && p.bag.food < 2 && s.storage.food > 2) return { type: 'withdraw', res: 'food' };

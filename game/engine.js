@@ -119,7 +119,7 @@ export function startGame(state) {
   s.outposts = {};
   s.players = s.seats.map((seat) => ({
     char: seat.char, name: seat.name, uid: seat.uid, ai: !!seat.ai, at: HOME, lives: s.settings.lives, lost: false,
-    rep: 0, level: 0, bag: { ...emptyBag(), food: 2 }, slots: BAG_SLOTS, turn: null,
+    rep: 0, level: 0, fear: 0, bag: { ...emptyBag(), food: 2 }, slots: BAG_SLOTS, turn: null,
   }));
   s.upgrades = {};
   s.finale = null;
@@ -212,6 +212,7 @@ function loseLife(s, p, n, ev) {
   ev.push({ t: 'life', who: p.char, delta: -n, lives: p.lives });
   if (p.lives === 0) {
     p.lost = true;
+    p.fear = 0;
     log(s, `${p.name} is Lost! The ground where they fell turns dark.`);
     ev.push({ t: 'lost', who: p.char, at: p.at });
     corruptTile(s, p.at, ev, 'lost');
@@ -239,11 +240,42 @@ function corruptTile(s, k, ev, why) {
   }
   ev.push({ t: 'corrupt', at: k, horror: s.horror, why });
   log(s, `Corruption spreads (${s.horror}/${HORROR_MAX}).`);
+  horrorRose(s, k, ev);
+  return true;
+}
+// What follows every step up the Horror Track: monsters, Root King quests, the King himself.
+function horrorRose(s, k, ev) {
   if (s.horror % s.settings.spawnEvery === 0 && s.horror < HORROR_MAX) spawnMonster(s, ev);
   if (s.quest) for (const [mark, hq] of Object.entries(HORROR_QUESTS))
     if (s.horror >= +mark && !s.quest.fired[mark]) { s.quest.fired[mark] = true; openQuest(s, hq.id, k, ev, { force: true }); }
   if (s.horror >= HORROR_MAX && !s.rootKing) awakenRootKing(s, ev);
-  return true;
+}
+
+// Fear: harmless until the third, then panic — lose a life, flee to a neighbouring tile, and the Fear is spent.
+export const FEAR_MAX = 3;
+function addFear(s, p, n, ev) {
+  if (p.lost) return;
+  const before = p.fear || 0;
+  p.fear = Math.max(0, before + n);
+  if (p.fear === before) return;
+  ev.push({ t: 'fear', who: p.char, delta: p.fear - before, fear: Math.min(p.fear, FEAR_MAX) });
+  log(s, n > 0 ? `${p.name} is gripped by Fear (${Math.min(p.fear, FEAR_MAX)}/${FEAR_MAX}).` : `${p.name} shakes off some Fear.`);
+  if (p.fear >= FEAR_MAX) {
+    p.fear = 0;
+    log(s, `${p.name} panics!`);
+    ev.push({ t: 'panic', who: p.char });
+    loseLife(s, p, 1, ev);
+    if (!p.lost && s.phase === 'playing') flee(s, p, ev);
+  }
+}
+function flee(s, p, ev) {
+  const to = neighbors(p.at).filter((k) => s.tiles[k].revealed && !monstersAt(s, k).length);
+  const clean = to.filter((k) => !s.tiles[k].corrupted);
+  if (!to.length) return;
+  p.at = pick(clean.length ? clean : to);
+  ev.push({ t: 'move', who: p.char, path: [p.at], panic: true });
+  log(s, `${p.name} panics and flees!`);
+  corruptionBites(s, p, p.at, ev);
 }
 
 function spreadCorruption(s, ev) {
@@ -431,7 +463,8 @@ function nextTurn(s, ev) {
   for (let i = s.turn + 1; i < s.players.length; i++) {
     if (!s.players[i].lost) {
       s.turn = i;
-      s.players[i].turn = { fueled: false, mp: 0, dec: 2, trailblazed: false, sureFooted: false, freeSearch: false, converted: false };
+      s.players[i].turn = { fueled: false, mp: 0, dec: 2, trailblazed: false, sureFooted: false, freeSearch: false, converted: false, slow: s.players[i].slowNext || 0 };
+      s.players[i].slowNext = 0;
       ev.push({ t: 'turn', who: s.players[i].char });
       return;
     }
@@ -643,8 +676,25 @@ function applyFx(s, p, fx, ev, ctx = {}) {
         }
       }
     }
-    if (f.mp && p.turn) { p.turn.mp += f.mp; log(s, `${p.name} gains +${f.mp} movement.`); }
-    if (f.heal) { p.lives = Math.min(maxLives(s), p.lives + f.heal); ev.push({ t: 'life', who: p.char, delta: f.heal, lives: p.lives }); }
+    if (f.mp && p.turn) {
+      p.turn.mp = Math.max(0, p.turn.mp + f.mp);
+      log(s, f.mp > 0 ? `${p.name} gains +${f.mp} movement.` : `${p.name} loses ${-f.mp} movement.`);
+    }
+    if (f.heal && p.lives < maxLives(s)) { p.lives = Math.min(maxLives(s), p.lives + f.heal); ev.push({ t: 'life', who: p.char, delta: f.heal, lives: p.lives }); }
+    if (f.allHeal) for (const x of everyone) if (x.lives < maxLives(s)) { x.lives++; ev.push({ t: 'life', who: x.char, delta: 1, lives: x.lives }); }
+    if (f.fear) addFear(s, p, f.fear, ev);
+    if (f.allFear) for (const x of everyone) addFear(s, x, f.allFear, ev);
+    if (f.horror) for (let i = 0; i < f.horror && s.phase === 'playing'; i++) {
+      s.horror++;
+      ev.push({ t: 'horror', horror: s.horror });
+      log(s, `The Horror Track advances (${s.horror}/${HORROR_MAX}).`);
+      horrorRose(s, p.at, ev);
+    }
+    if (f.cleanseNear) { // your own tile first, else a corrupted tile beside you
+      const k = [p.at, ...neighbors(p.at)].find((x) => s.tiles[x]?.corrupted && s.tiles[x].biome !== 'corrupted' && !monstersAt(s, x).length);
+      if (k) { s.tiles[k].corrupted = false; ev.push({ t: 'cleanse', at: k }); log(s, 'The corruption there melts away.'); questProgress(s, 'cleanse', p, ev); }
+    }
+    if (f.slowOn) for (const x of everyone) if (s.tiles[x.at].biome === f.slowOn) { x.slowNext = (x.slowNext || 0) + 1; log(s, `${x.name} will lose 1 movement next turn.`); }
     if (f.endMove && p.turn) { p.turn.mp = 0; log(s, `${p.name}'s movement ends.`); }
     if (f.sureFooted && p.turn) { p.turn.sureFooted = true; log(s, `${p.name} ignores difficult terrain this turn.`); }
     if (f.reveal) {
@@ -684,9 +734,20 @@ function resolveCard(s, p, id, deck, ev, chain) {
   log(s, `${p.name} draws ${card.title}.`);
   const choiceFx = card.fx.find((f) => f.choice);
   if (choiceFx) {
-    s.pending = { kind: 'choice', who: p.char, card: id, deck, options: choiceFx.choice.map((o) => o.label), chain };
     const rest = card.fx.filter((f) => !f.choice);
     if (rest.length) applyFx(s, p, rest, ev, {});
+    // An option that costs something you don't carry can't be picked.
+    const can = choiceFx.choice.map((o, i) => i).filter((i) => Object.entries(choiceFx.choice[i].needs || {}).every(([r, n]) => p.bag[r] >= n));
+    if (can.length === 1 && can.length < choiceFx.choice.length) {
+      const opt = choiceFx.choice[can[0]];
+      log(s, `${p.name} has no other choice: ${opt.label}.`);
+      const cctx = { deck };
+      applyFx(s, p, opt.fx, ev, cctx);
+      continueChain(s, p, deck, ev, chain + (cctx.draws || 0));
+      return;
+    }
+    const idx = can.length ? can : choiceFx.choice.map((o, i) => i);
+    s.pending = { kind: 'choice', who: p.char, card: id, deck, options: idx.map((i) => choiceFx.choice[i].label), idx, chain };
     return;
   }
   const ctx = { deck };
@@ -793,6 +854,7 @@ export function act(state, seatChar, action) {
       mp += mods.mpBonus || 0;
       if (s.night === 'night-terrors' && !atHome && !s.outposts[p.at]) { mp = Math.max(1, mp - 1); log(s, `Night terrors: ${p.name} sets out slowly.`); }
       if (p.char === 'mushy' && p.level >= 1) mp += 1;
+      if (T.slow) { mp = Math.max(1, mp - T.slow); log(s, `Shaken ground: ${p.name} sets out slowly.`); T.slow = 0; }
       if (mods.mpCap) mp = Math.min(mp, mods.mpCap);
       T.fueled = true; T.mp += mp;
       break;
@@ -851,8 +913,8 @@ export function act(state, seatChar, action) {
       if (!pd || pd.who !== p.char) fail('Nothing to choose.');
       s.pending = null;
       if (pd.kind === 'choice') {
-        const opt = CARDS[pd.card].fx.find((f) => f.choice).choice[action.index];
-        if (!opt) fail('Pick one of the options.');
+        const opt = CARDS[pd.card].fx.find((f) => f.choice).choice[pd.idx ? pd.idx[action.index] : action.index];
+        if (!opt) { s.pending = pd; fail('Pick one of the options.'); }
         log(s, `${p.name} chooses: ${opt.label}.`);
         const cctx = { deck: pd.deck };
         applyFx(s, p, opt.fx, ev, cctx);
@@ -937,17 +999,7 @@ export function act(state, seatChar, action) {
           for (const v of victims) loseLife(s, v, 1, ev);
         }
       } else if (m.hp > 0 && m.stuck) log(s, `${MONSTERS[m.kind].name} is tangled in the snare and cannot strike back.`);
-      if (faces.includes('panic') && !p.lost && m.hp > 0) {
-        const flee = neighbors(p.at).filter((k) => s.tiles[k].revealed && !monstersAt(s, k).length);
-        const clean = flee.filter((k) => !s.tiles[k].corrupted);
-        if (flee.length) {
-          const to = pick(clean.length ? clean : flee);
-          p.at = to;
-          ev.push({ t: 'move', who: p.char, path: [to], panic: true });
-          log(s, `${p.name} panics and flees!`);
-          corruptionBites(s, p, to, ev);
-        }
-      }
+      if (faces.includes('panic') && !p.lost && m.hp > 0) flee(s, p, ev);
       break;
     }
     case 'cleanse': {
@@ -979,11 +1031,11 @@ export function act(state, seatChar, action) {
     case 'rest': {
       if (!atHome && !s.outposts[p.at] && p.char !== 'sporewick') fail('Rest at the Workshop or an Outpost.');
       if (!atHome && p.char !== 'sporewick' && s.night === 'snuffed') fail('Snuffed Lanterns: no Resting at Outposts tonight.');
-      if (p.lives >= maxLives(s)) fail('You are already at full health.');
+      if (p.lives >= maxLives(s) && !p.fear) fail('You are already at full health.');
       decide();
-      p.lives++;
-      ev.push({ t: 'life', who: p.char, delta: 1, lives: p.lives });
+      if (p.lives < maxLives(s)) { p.lives++; ev.push({ t: 'life', who: p.char, delta: 1, lives: p.lives }); }
       log(s, `${p.name} rests and recovers.`);
+      if (p.fear) addFear(s, p, -1, ev);
       break;
     }
     case 'build': {
@@ -1282,7 +1334,7 @@ export function options(s) {
     outpost: dec && outpostOk,
     atOutpost: !!s.outposts?.[p.at],
     revive: dec ? lostHere : [],
-    rest: dec && (home || (!!s.outposts?.[p.at] && s.night !== 'snuffed') || p.char === 'sporewick') && p.lives < maxLives(s),
+    rest: dec && (home || (!!s.outposts?.[p.at] && s.night !== 'snuffed') || p.char === 'sporewick') && (p.lives < maxLives(s) || p.fear > 0),
     build: dec && home ? parts.filter((x) => !s.built[x.id]) : [],
     upgrade: dec && home && p.slots < BAG_SLOTS_UPGRADED,
     launch: dec && home && s.settings.scenario === 'skyship' && parts.every((x) => s.built[x.id]) && questsOk(s),
