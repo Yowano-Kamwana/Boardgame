@@ -408,6 +408,7 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
           const ng = new THREE.Group();
           ng.add(makeBlob(0.8));
           ng.add(makeBase(def));
+          fig.rotation.y = def.turn || 0; // each figure's own yaw, so it faces the players
           fig.position.y = 0.06;
           ng.add(fig);
           ng.scale.copy(old.scale);
