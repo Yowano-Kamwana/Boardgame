@@ -5,7 +5,7 @@ import {
   DIRS, RISK_FACES, MONSTERS, SPAWN_ORDER, SCENARIOS, UPGRADES, CARDS, DECKS, WEATHER, CYCLE,
   MAX_SEATS, WORKSHOP, CRAFTS, MODES, OUTPOST,
   QUESTS, HORROR_QUESTS, QUEST_TILES, QUEST_MAX_ACTIVE, QUEST_TIMER, QUESTS_TO_WIN, RUMOURS, NIGHT, CHAIN, CHAIN_BIOME,
-} from './data.js?v=18';
+} from './data.js?v=19';
 
 // The board's size depends on the game mode; every entry point sets it from the state.
 let RADIUS = 3;

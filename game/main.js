@@ -1,15 +1,15 @@
 // Rootbound playtest app: lobby, HUD, and the glue between the rules engine, sync and 3D table.
-import { createBoard } from './board3d.js?v=18';
-import { createNet } from './net.js?v=18';
-import { portraitDataURL } from './models.js?v=18';
-import { botAction } from './ai.js?v=18';
-import * as SND from './sound.js?v=18';
-import { showGallery } from './gallery.js?v=18';
-import * as E from './engine.js?v=18';
+import { createBoard } from './board3d.js?v=19';
+import { createNet } from './net.js?v=19';
+import { portraitDataURL } from './models.js?v=19';
+import { botAction } from './ai.js?v=19';
+import * as SND from './sound.js?v=19';
+import { showGallery } from './gallery.js?v=19';
+import * as E from './engine.js?v=19';
 import {
   CARDS, CHARACTERS, BIOMES, RES, RES_LABEL, WEATHER, SCENARIOS, MONSTERS, UPGRADES, HORROR_MAX, DIRS,
   RISK_LABEL, STACK, WORKSHOP, CRAFTS, MODES, OUTPOST, QUESTS, QUESTS_TO_WIN, QUEST_MAX_ACTIVE, NIGHT, CHAIN, CHAIN_BIOME,
-} from './data.js?v=18';
+} from './data.js?v=19';
 
 const A = 'assets/';
 const $ = (s) => document.querySelector(s);
