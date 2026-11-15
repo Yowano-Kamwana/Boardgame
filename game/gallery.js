@@ -89,7 +89,7 @@ export function showGallery({ assetBase, quality = 'high', version = '' }) {
     [...dots.children].forEach((d, j) => d.setAttribute('aria-current', String(j === index)));
     holder.clear();
     try {
-      const fig = await loadFigure(path(f.model), f.boss ? 1.5 : 1.1, f.fit);
+      const fig = await loadFigure(path(f.model), f.boss ? 1.25 : 1.1, f.fit);
       if (my !== token) return;
       fig.rotation.y = f.turn;
       holder.add(fig);

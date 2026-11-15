@@ -101,7 +101,7 @@ export const MONSTERS = {
   'blighted-mushroom': { name: 'Blighted Mushroom', hp: 3, card: 'blighted-mushroom', model: 'models/blighted-mushroom.gltf.json?v=18', turn: 0, size: 0.78 },
   'shadow-stalker':    { name: 'Shadow Stalker',    hp: 4, card: 'shadow-stalker', model: 'models/shadow-stalker.gltf.json?v=18', turn: -0.49, size: 0.9 },
   'crystal-husk':      { name: 'Crystal Husk',      hp: 4, card: 'crystal-husk', model: 'models/crystal-husk.gltf.json?v=18', turn: -1.27, size: 0.8 },
-  'root-king':         { name: 'The Root King',     hp: 6, card: 'root-king', boss: true, model: 'models/root-king.gltf.json?v=18', turn: -1.27, size: 1.25 },
+  'root-king':         { name: 'The Root King',     hp: 6, card: 'root-king', boss: true, model: 'models/root-king.gltf.json?v=19', turn: -1.27, size: 1.3 },
 };
 // Spawn order: early monsters are weaker.
 export const SPAWN_ORDER = ['corrupted-wolf', 'blighted-mushroom', 'corrupted-wolf', 'shadow-stalker', 'crystal-husk', 'blighted-mushroom', 'shadow-stalker', 'crystal-husk'];
