@@ -533,6 +533,27 @@ img.card-face.v2 { width: min(430px, 88vw, calc((100vh - 190px) * 0.6667)); aspe
   .medal.active .face { animation: none; }
   .journal, .journal.open { transition: none; }
 }
+
+/* ---------- The Figures (gallery) ---------- */
+.gallery { position: fixed; inset: 0; z-index: 60; background: #1a120b; color: var(--ink); }
+.g-stage { position: absolute; inset: 0; }
+.g-stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.g-top { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center;
+  padding: max(14px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); pointer-events: none; }
+.g-top > * { pointer-events: auto; }
+.g-caption { position: absolute; left: 0; right: 0; bottom: 92px; text-align: center; pointer-events: none; text-shadow: 0 2px 10px #000; }
+.g-caption h2 { margin: 0; font-family: var(--display); font-size: clamp(26px, 5vw, 40px); color: var(--gold-bright); letter-spacing: .04em; }
+.g-caption small { font-family: var(--display); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-dim); }
+.g-load { margin: 8px 0 0; color: var(--ink-faint); font-style: italic; }
+.g-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 50%; cursor: pointer;
+  font-size: 34px; line-height: 1; color: var(--gold-bright); background: radial-gradient(circle at 35% 30%, #4a3520, #1d130a); border: 1.5px solid var(--brass, #c9a24f); }
+.g-prev { left: max(14px, env(safe-area-inset-left, 0px)); }
+.g-next { right: max(14px, env(safe-area-inset-right, 0px)); }
+.g-dots { position: absolute; left: 0; right: 0; bottom: 52px; display: flex; justify-content: center; gap: 6px; }
+.g-dots button { width: 22px; height: 22px; border: 0; background: none; cursor: pointer; padding: 7px; }
+.g-dots button::after { content: ""; display: block; width: 8px; height: 8px; border-radius: 50%; background: #6a5432; }
+.g-dots button[aria-current="true"]::after { background: var(--gold-bright); box-shadow: 0 0 6px var(--gold); }
+.g-hint { position: absolute; left: 0; right: 0; bottom: max(14px, env(safe-area-inset-bottom, 0px)); margin: 0; text-align: center; font-size: 13px; color: var(--ink-dim); text-shadow: 0 1px 6px #000; }
 </style>
 
 <div id="app">
@@ -550,4 +571,4 @@ img.card-face.v2 { width: min(430px, 88vw, calc((100vh - 190px) * 0.6667)); aspe
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
-<script type="module" src="game/main.js"></script>
+<script type="module" src="game/main.js?v=18"></script>

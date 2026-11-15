@@ -1,14 +1,15 @@
 // Rootbound playtest app: lobby, HUD, and the glue between the rules engine, sync and 3D table.
-import { createBoard } from './board3d.js';
-import { createNet } from './net.js';
-import { portraitDataURL } from './models.js';
-import { botAction } from './ai.js';
-import * as SND from './sound.js';
-import * as E from './engine.js';
+import { createBoard } from './board3d.js?v=18';
+import { createNet } from './net.js?v=18';
+import { portraitDataURL } from './models.js?v=18';
+import { botAction } from './ai.js?v=18';
+import * as SND from './sound.js?v=18';
+import { showGallery } from './gallery.js?v=18';
+import * as E from './engine.js?v=18';
 import {
   CARDS, CHARACTERS, BIOMES, RES, RES_LABEL, WEATHER, SCENARIOS, MONSTERS, UPGRADES, HORROR_MAX, DIRS,
   RISK_LABEL, STACK, WORKSHOP, CRAFTS, MODES, OUTPOST, QUESTS, QUESTS_TO_WIN, QUEST_MAX_ACTIVE, NIGHT, CHAIN, CHAIN_BIOME,
-} from './data.js';
+} from './data.js?v=18';
 
 const A = 'assets/';
 const $ = (s) => document.querySelector(s);
@@ -319,6 +320,7 @@ function showTitle() {
     item('Begin an Expedition', 'Gather a party and set out', () => openDrawer('Begin an Expedition', setup), true),
     item(online ? 'Join an Expedition' : 'Continue', online ? 'Friends’ games and your own' : 'Saved games on this device', () => openDrawer(online ? 'Join an Expedition' : 'Saved Expeditions', join), false, badge),
     item('The Mushroomfolk', 'Meet the five inventors', () => openDrawer('The Mushroomfolk', folk)),
+    item('The Figures', 'See every miniature up close', () => showGallery({ assetBase: A, quality: look.quality })),
     item('How to Play', 'The rules of the Everdeep', showGuide),
     item('Settings', 'Sound, music and graphics', showSettings));
   const stage = h('div', { class: 'hero-stage', 'aria-hidden': 'true' },
