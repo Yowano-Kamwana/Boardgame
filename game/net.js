@@ -48,10 +48,12 @@ async function connect(local) {
   const claude = window.claude;
   if (!claude?.use) return { remote: null, local };
   const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
+  if (!db) return { remote: null, local };
   const uid = user ? await user.id() : null;
-  if (!db || !uid) return { remote: null, local };
+  // Without an identity, or with view-only access, a friend can see expeditions but not join them.
   let canWrite = null;
-  try { canWrite = user.can ? await user.can('data.write') : null; } catch { canWrite = null; }
+  try { canWrite = user?.can ? await user.can('data.write') : null; } catch { canWrite = null; }
+  if (!uid) canWrite = false;
 
   const remote = {
     online: true,

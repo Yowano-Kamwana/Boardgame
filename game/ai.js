@@ -1,8 +1,8 @@
 // AI Mushroomfolk: gathers what the invention still needs, carries it home, builds, then finishes.
 // Avoids corrupted ground and builds Outposts on long trips. Hunts monsters it can beat
 // (alone or with friends), and sets snares where monsters are likely to walk.
-import { act, options, reachable, dist, RuleError, monstersAt, neighbors, useBoard, partCost, questsOk } from './engine.js?v=19';
-import { BIOMES, SCENARIOS, OUTPOST, CRAFTS, QUESTS } from './data.js?v=19';
+import { act, options, reachable, dist, RuleError, monstersAt, neighbors, useBoard, partCost, questsOk } from './engine.js?v=20';
+import { BIOMES, SCENARIOS, OUTPOST, CRAFTS, QUESTS } from './data.js?v=20';
 const HOME = '0,0';
 
 function needs(s) {

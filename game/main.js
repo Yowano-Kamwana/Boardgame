@@ -1,15 +1,15 @@
 // Rootbound playtest app: lobby, HUD, and the glue between the rules engine, sync and 3D table.
-import { createBoard } from './board3d.js?v=19';
-import { createNet } from './net.js?v=19';
-import { portraitDataURL } from './models.js?v=19';
-import { botAction } from './ai.js?v=19';
-import * as SND from './sound.js?v=19';
-import { showGallery } from './gallery.js?v=19';
-import * as E from './engine.js?v=19';
+import { createBoard } from './board3d.js?v=20';
+import { createNet } from './net.js?v=20';
+import { portraitDataURL } from './models.js?v=20';
+import { botAction } from './ai.js?v=20';
+import * as SND from './sound.js?v=20';
+import { showGallery } from './gallery.js?v=20';
+import * as E from './engine.js?v=20';
 import {
   CARDS, CHARACTERS, BIOMES, RES, RES_LABEL, WEATHER, SCENARIOS, MONSTERS, UPGRADES, HORROR_MAX, DIRS,
   RISK_LABEL, STACK, WORKSHOP, CRAFTS, MODES, OUTPOST, QUESTS, QUESTS_TO_WIN, QUEST_MAX_ACTIVE, NIGHT, CHAIN, CHAIN_BIOME,
-} from './data.js?v=19';
+} from './data.js?v=20';
 
 const A = 'assets/';
 const $ = (s) => document.querySelector(s);
@@ -123,6 +123,9 @@ addEventListener('keydown', wake);
 addEventListener('click', (e) => { if (e.target.closest?.('.btn, .m-item, .medal, .journal-btn, .j-tabs button, .switch')) SND.play('click'); });
 
 let NET = null;          // { remote, local }
+// Shown to friends who can see the page but cannot write to it (not invited as an Editor).
+const ACCESS_HELP = 'You can see expeditions but can’t join yet. Ask the host to open Share on this page, turn off “Anyone with the link”, and invite you by email as an Editor. Then sign in to Claude with that email and open the link again.';
+const viewOnly = () => !!NET?.remote && NET.remote.canWrite === false;
 let store = null;        // the backend this game lives in
 let gameId = null;
 let game = null;         // latest state from the store
@@ -286,16 +289,18 @@ function showTitle() {
       seg('No Food to lose?', 'hunger', [['rep', 'Lose Reputation first'], ['life', 'Lose a life']]),
       seg('Quests', 'quests', [[false, 'Off'], [true, `On: ${QUESTS_TO_WIN} to win, Artifact in every part`]])),
     h('div', { class: 'actions' },
-      online && h('button', { class: 'btn primary', onclick: () => createGame(NET.remote) }, 'Start online expedition'),
+      online && !viewOnly() && h('button', { class: 'btn primary', onclick: () => createGame(NET.remote) }, 'Start online expedition'),
       h('button', { class: 'btn' + (online ? '' : ' primary'), onclick: () => createGame(NET.local) }, 'Play on this device')),
     !NET ? h('p', { class: 'note' }, 'Connecting…')
+      : viewOnly() ? h('p', { class: 'note access-help' }, ACCESS_HELP)
       : online ? h('p', { class: 'note' }, 'Online expeditions are shared with everyone who can open this page. Friends join from their own device and see every move live.')
       : h('p', { class: 'note' }, 'Online play isn’t available in this view, so expeditions stay on this device (pass-and-play). Open the published game page in Claude to play with friends.'),
   ];
   const list = h('div', { class: 'game-list' }, h('p', { class: 'note' }, online ? 'Looking for expeditions…' : 'No saved expeditions yet.'));
   const join = [
     list,
-    online && h('p', { class: 'note' }, 'To invite friends: open Share on this page and add them by email as Editors. Then they open the link, enter a name, and join here.'),
+    viewOnly() ? h('p', { class: 'note access-help' }, ACCESS_HELP)
+      : online && h('p', { class: 'note' }, 'To invite friends: open Share on this page, turn off “Anyone with the link”, and add each friend by email as an Editor. Then they open the link, enter a name, and join here.'),
   ];
   const folk = [h('div', { class: 'folk' }, Object.entries(CHARACTERS).map(([id, c]) => h('article', { class: 'folk-card' },
     h('img', { src: faceOf(id), alt: '' }),
@@ -331,7 +336,7 @@ function showTitle() {
     h('div', { class: 'hero' }, stage, motes, h('div', { class: 'hero-shade' })),
     h('h1', { class: 'sr-only' }, 'Rootbound: Discover, Survive, Invent, Together'),
     h('div', { class: 'title-ui' }, menu,
-      h('p', { class: 'title-foot' }, online ? 'Online play ready · up to 5 players' : NET ? 'Pass-and-play on this device · up to 5 players' : 'Connecting…')),
+      h('p', { class: 'title-foot' }, viewOnly() ? 'Watching only · ask the host to invite you as an Editor to play' : online ? 'Online play ready · up to 5 players' : NET ? 'Pass-and-play on this device · up to 5 players' : 'Connecting…')),
     drawer);
   runMotes(motes, t);
   t.onkeydown = (e) => { if (e.key === 'Escape') closeDrawer(); };
@@ -465,7 +470,8 @@ function showRoom(s) {
       h('div', { class: 'actions' },
         h('button', { class: 'btn', onclick: showTitle }, 'Back'),
         h('button', { class: 'btn primary', disabled: !canStart, onclick: () => mutate((st) => E.startGame(st).state) }, 'Set out'))),
-    store.online && h('p', { class: 'note' }, 'Friends who open this page will see this expedition under “Join an expedition”. Each friend picks a Mushroomfolk; one device can also play several.'),
+    store.online && store.canWrite === false ? h('p', { class: 'note access-help' }, ACCESS_HELP)
+      : store.online && h('p', { class: 'note' }, 'Friends who open this page will see this expedition under “Join an expedition”. Each friend picks a Mushroomfolk; one device can also play several.'),
     h('div', { class: 'chars' }, cards)));
 }
 
@@ -608,7 +614,14 @@ async function mutate(fn) {
   if (busy) return;
   busy = true;
   try { await store.mutate(gameId, fn); }
-  catch (e) { toast(e.message || 'Something went wrong.', 'bad'); }
+  catch (e) {
+    // A refused write online almost always means this person only has view access.
+    if (store.online && !(e instanceof E.RuleError) && /invalid_argument|permission|not_granted|denied|refused/i.test(`${e.code || ''} ${e.message || ''}`)) {
+      store.canWrite = false;
+      toast(ACCESS_HELP, 'bad');
+      if (game?.phase === 'lobby') showRoom(game);
+    } else toast(e.message || 'Something went wrong.', 'bad');
+  }
   finally { busy = false; }
 }
 function act(action) {
