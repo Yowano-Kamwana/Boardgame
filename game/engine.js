@@ -5,7 +5,7 @@ import {
   DIRS, RISK_FACES, MONSTERS, SPAWN_ORDER, SCENARIOS, UPGRADES, CARDS, DECKS, WEATHER, CYCLE,
   MAX_SEATS, WORKSHOP, CRAFTS, MODES, OUTPOST,
   QUESTS, HORROR_QUESTS, QUEST_TILES, QUEST_MAX_ACTIVE, QUEST_TIMER, QUESTS_TO_WIN, RUMOURS, NIGHT, CHAIN, CHAIN_BIOME,
-} from './data.js?v=21';
+} from './data.js?v=22';
 
 // The board's size depends on the game mode; every entry point sets it from the state.
 let RADIUS = 3;
@@ -245,10 +245,20 @@ function corruptTile(s, k, ev, why) {
 }
 // What follows every step up the Horror Track: monsters, Root King quests, the King himself.
 function horrorRose(s, k, ev) {
-  if (s.horror % s.settings.spawnEvery === 0 && s.horror < HORROR_MAX) spawnMonster(s, ev);
+  // Each spawn mark wakes a monster once: cleansing back below a mark and passing it again does not.
+  s.spawnMarks ||= {};
+  if (s.horror % s.settings.spawnEvery === 0 && s.horror < HORROR_MAX && !s.spawnMarks[s.horror]) { s.spawnMarks[s.horror] = true; spawnMonster(s, ev); }
   if (s.quest) for (const [mark, hq] of Object.entries(HORROR_QUESTS))
     if (s.horror >= +mark && !s.quest.fired[mark]) { s.quest.fired[mark] = true; openQuest(s, hq.id, k, ev, { force: true }); }
   if (s.horror >= HORROR_MAX && !s.rootKing) awakenRootKing(s, ev);
+}
+
+// Cleansing pushes the Horror Track back one step.
+function lowerHorror(s, ev) {
+  if (s.horror <= 0) return;
+  s.horror--;
+  ev.push({ t: 'horror', horror: s.horror, delta: -1 });
+  log(s, `The Horror Track falls back (${s.horror}/${HORROR_MAX}).`);
 }
 
 // Fear: harmless until the third, then panic — lose a life, flee to a neighbouring tile, and the Fear is spent.
@@ -686,13 +696,13 @@ function applyFx(s, p, fx, ev, ctx = {}) {
     if (f.allFear) for (const x of everyone) addFear(s, x, f.allFear, ev);
     if (f.horror) for (let i = 0; i < f.horror && s.phase === 'playing'; i++) {
       s.horror++;
-      ev.push({ t: 'horror', horror: s.horror });
+      ev.push({ t: 'horror', horror: s.horror, delta: 1 });
       log(s, `The Horror Track advances (${s.horror}/${HORROR_MAX}).`);
       horrorRose(s, p.at, ev);
     }
     if (f.cleanseNear) { // your own tile first, else a corrupted tile beside you
       const k = [p.at, ...neighbors(p.at)].find((x) => s.tiles[x]?.corrupted && s.tiles[x].biome !== 'corrupted' && !monstersAt(s, x).length);
-      if (k) { s.tiles[k].corrupted = false; ev.push({ t: 'cleanse', at: k }); log(s, 'The corruption there melts away.'); questProgress(s, 'cleanse', p, ev); }
+      if (k) { s.tiles[k].corrupted = false; ev.push({ t: 'cleanse', at: k }); log(s, 'The corruption there melts away.'); lowerHorror(s, ev); questProgress(s, 'cleanse', p, ev); }
     }
     if (f.slowOn) for (const x of everyone) if (s.tiles[x.at].biome === f.slowOn) { x.slowNext = (x.slowNext || 0) + 1; log(s, `${x.name} will lose 1 movement next turn.`); }
     if (f.endMove && p.turn) { p.turn.mp = 0; log(s, `${p.name}'s movement ends.`); }
@@ -1016,6 +1026,7 @@ export function act(state, seatChar, action) {
       ev.push({ t: 'cleanse', at });
       p.rep++; ev.push({ t: 'rep', who: p.char, delta: 1 });
       log(s, `${p.name} cleanses the land: +1 Reputation.`);
+      lowerHorror(s, ev);
       questProgress(s, 'cleanse', p, ev);
       break;
     }

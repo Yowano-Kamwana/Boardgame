@@ -1,15 +1,15 @@
 // Rootbound playtest app: lobby, HUD, and the glue between the rules engine, sync and 3D table.
-import { createBoard } from './board3d.js?v=21';
-import { createNet } from './net.js?v=21';
-import { portraitDataURL, onFigureProblem } from './models.js?v=21';
-import { botAction } from './ai.js?v=21';
-import * as SND from './sound.js?v=21';
-import { showGallery } from './gallery.js?v=21';
-import * as E from './engine.js?v=21';
+import { createBoard } from './board3d.js?v=22';
+import { createNet } from './net.js?v=22';
+import { portraitDataURL, onFigureProblem } from './models.js?v=22';
+import { botAction } from './ai.js?v=22';
+import * as SND from './sound.js?v=22';
+import { showGallery } from './gallery.js?v=22';
+import * as E from './engine.js?v=22';
 import {
   CARDS, CHARACTERS, BIOMES, RES, RES_LABEL, WEATHER, SCENARIOS, MONSTERS, UPGRADES, HORROR_MAX, DIRS,
   RISK_LABEL, STACK, WORKSHOP, CRAFTS, MODES, OUTPOST, QUESTS, QUESTS_TO_WIN, QUEST_MAX_ACTIVE, NIGHT, CHAIN, CHAIN_BIOME,
-} from './data.js?v=21';
+} from './data.js?v=22';
 
 const A = 'assets/';
 const $ = (s) => document.querySelector(s);
@@ -522,7 +522,7 @@ async function drain() {
 async function narrate(e, s) {
   const who = (c) => s.players.find((p) => p.char === c)?.name || c;
   const sfx = { gain: 'gain', lose: 'lose', hurt: 'hurt', dice: 'dice', reveal: 'flip', move: 'step', corrupt: 'corrupt', cleanse: 'cleanse', quest: 'quest', questDone: 'quest',
-    chainDone: 'quest', chain: 'gain', fear: e.delta > 0 ? 'corrupt' : 'cleanse', panic: 'hurt', horror: 'corrupt', build: 'build', improve: 'build', outpost: 'build', advance: 'quest', revive: 'cleanse', spawn: 'growl', strike: 'hurt', kill: 'gain',
+    chainDone: 'quest', chain: 'gain', fear: e.delta > 0 ? 'corrupt' : 'cleanse', panic: 'hurt', horror: e.delta < 0 ? null : 'corrupt', build: 'build', improve: 'build', outpost: 'build', advance: 'quest', revive: 'cleanse', spawn: 'growl', strike: 'hurt', kill: 'gain',
     outpostLost: 'corrupt', questFail: 'corrupt', escape: 'growl', lost: 'hurt', trap: 'build' }[e.t];
   if (sfx) SND.play(sfx);
   if (e.t === 'life' && e.delta < 0) SND.play('hurt');
@@ -533,7 +533,7 @@ async function narrate(e, s) {
     case 'life': toast([`${who(e.who)} `, e.delta < 0 ? 'loses a life' : 'recovers a life'], e.delta < 0 ? 'bad' : 'good'); break;
     case 'fear': toast(e.delta > 0 ? `${who(e.who)} gains Fear (${e.fear}/${E.FEAR_MAX})` : `${who(e.who)} shakes off Fear`, e.delta > 0 ? 'bad' : 'good'); break;
     case 'panic': toast(`${who(e.who)} panics: loses a life and flees!`, 'bad'); break;
-    case 'horror': toast(`The Horror Track advances (${e.horror}/${HORROR_MAX})`, 'bad'); break;
+    case 'horror': toast(e.delta < 0 ? `Horror falls back (${e.horror}/${HORROR_MAX})` : `The Horror Track advances (${e.horror}/${HORROR_MAX})`, e.delta < 0 ? 'good' : 'bad'); break;
     case 'lost': toast(`${who(e.who)} is Lost! A friend can revive them on that tile.`, 'bad'); break;
     case 'revive': toast(`${who(e.by)} revives ${who(e.who)}!`, 'good'); break;
     case 'advance': toast(`${who(e.who)} reaches level ${e.level}: ${CHARACTERS[e.who].levels[e.level - 1].name}!`, 'good'); break;
@@ -967,7 +967,7 @@ function showGuide() {
       h('li', {}, 'Gathering the same tile again disturbs it (a risk die is rolled). A third time exhausts it: smaller yields, and the land may turn corrupt. Harvested land never recovers.'),
       h('li', {}, 'Searching a tile a second time, or searching corrupted land, draws from the Blight deck.'),
       h('li', {}, 'Stepping onto a corrupted tile costs a life. Paths avoid corruption when they can; a \u2620 on a highlighted tile means the way there crosses corruption.'),
-      h('li', {}, 'Cleanse a corrupted tile you stand on or one next to it (+1 Reputation).')),
+      h('li', {}, 'Cleanse a corrupted tile you stand on or one next to it: +1 Reputation, and the Horror Track falls back 1. A monster mark only ever wakes one monster, even if Horror passes it again.')),
     h('h3', {}, 'Outposts'),
     h('ul', {},
       h('li', {}, `Spend a decision and ${OUTPOST.cost.wood} Wood + ${OUTPOST.cost.metal} Metal to raise an Outpost on clean ground (2 per game on the standard board, 4 on the full board).`),

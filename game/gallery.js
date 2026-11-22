@@ -3,8 +3,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { loadFigure } from './models.js?v=21';
-import { CHARACTERS, MONSTERS } from './data.js?v=21';
+import { loadFigure } from './models.js?v=22';
+import { CHARACTERS, MONSTERS } from './data.js?v=22';
 
 const FIGURES = [
   ...Object.entries(CHARACTERS).filter(([, c]) => c.model).map(([id, c]) => ({ id, name: c.name, sub: `${c.role} · Mushroomfolk`, model: c.model, turn: c.turn || 0, fit: false })),
