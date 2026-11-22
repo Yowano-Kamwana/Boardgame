@@ -1,8 +1,8 @@
 // AI Mushroomfolk: gathers what the invention still needs, carries it home, builds, then finishes.
 // Avoids corrupted ground and builds Outposts on long trips. Hunts monsters it can beat
 // (alone or with friends), and sets snares where monsters are likely to walk.
-import { act, options, reachable, dist, RuleError, monstersAt, neighbors, useBoard, partCost, questsOk } from './engine.js?v=22';
-import { BIOMES, SCENARIOS, OUTPOST, CRAFTS, QUESTS } from './data.js?v=22';
+import { act, options, reachable, dist, RuleError, monstersAt, neighbors, useBoard, partCost, questsOk } from './engine.js?v=23';
+import { BIOMES, SCENARIOS, OUTPOST, CRAFTS, QUESTS } from './data.js?v=23';
 const HOME = '0,0';
 
 function needs(s) {
@@ -33,6 +33,18 @@ export function dangerTiles(s) {
 }
 
 const FIGHTERS = new Set(['bramblecap', 'thorncap']);
+// Chance that n risk dice deal at least hp damage (Hit 1, Double 2; +1 if any die hits with Killing Blow).
+function killChance(n, hp, killingBlow) {
+  let dist = new Map([[0, 1]]);
+  for (let i = 0; i < n; i++) {
+    const next = new Map();
+    for (const [d, pr] of dist) for (const [add, w] of [[0, 3 / 6], [1, 2 / 6], [2, 1 / 6]]) next.set(d + add, (next.get(d + add) || 0) + pr * w);
+    dist = next;
+  }
+  let p = 0;
+  for (const [d, pr] of dist) if (d + (killingBlow && d > 0 ? 1 : 0) >= hp) p += pr;
+  return p;
+}
 // Average damage per risk die: two Hits (1), one Double (2) out of six faces.
 const DMG_PER_DIE = 4 / 6;
 // Dice when attacking a monster standing at `at` (friends on or beside its tile add one each).
@@ -142,7 +154,12 @@ export function botAction(s) {
     const dice = attackDice(s, p, m.at);
     const killNow = dice * DMG_PER_DIE >= m.hp * 1.2;          // likely to finish it with this swing
     const safe = m.stuck || p.lives >= 2;                       // snared monsters can't strike back
-    if (killNow || safe || (backup && p.lives >= 2) || m.kind === 'root-king') return { type: 'attack', id: m.id };
+    if (m.kind === 'root-king') {
+      // Failing against the King is death, so only swing when it is likely to fall,
+      // or as a last stand when it is about to reach the Workshop.
+      const chance = killChance(dice, m.hp, p.char === 'bramblecap' && p.level >= 2);
+      if (chance >= 0.35 || (dist(m.at, HOME) <= 1 && chance >= 0.1)) return { type: 'attack', id: m.id };
+    } else if (killNow || safe || (backup && p.lives >= 2)) return { type: 'attack', id: m.id };
   }
   // Snare a tile monsters are likely to cross (Bramblecap the Trapper loves this).
   if (o.craft && canAfford(p, CRAFTS.snare.cost) && snareValue(s, p.at) > 0) {

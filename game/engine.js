@@ -5,7 +5,7 @@ import {
   DIRS, RISK_FACES, MONSTERS, SPAWN_ORDER, SCENARIOS, UPGRADES, CARDS, DECKS, WEATHER, CYCLE,
   MAX_SEATS, WORKSHOP, CRAFTS, MODES, OUTPOST,
   QUESTS, HORROR_QUESTS, QUEST_TILES, QUEST_MAX_ACTIVE, QUEST_TIMER, QUESTS_TO_WIN, RUMOURS, NIGHT, CHAIN, CHAIN_BIOME,
-} from './data.js?v=22';
+} from './data.js?v=23';
 
 // The board's size depends on the game mode; every entry point sets it from the state.
 let RADIUS = 3;
@@ -974,9 +974,10 @@ export function act(state, seatChar, action) {
       m.hp -= dmg;
       log(s, `${p.name} attacks ${MONSTERS[m.kind].name}: ${dmg} damage.`);
       ev.push({ t: 'hurt', id: m.id, dmg, hp: Math.max(0, m.hp) });
+      let escaped = false;
       // Monster Cage: without the finished Cage the Root King cannot be held.
       if (m.hp <= 0 && m.kind === 'root-king' && ((s.settings.scenario === 'monster-cage' && !s.finale?.cage) || !questsOk(s))) {
-        m.hp = m.maxHp;
+        m.hp = m.maxHp; escaped = true;
         const lands = allKeys().filter((k) => s.tiles[k].biome === 'corrupted' && k !== p.at);
         if (lands.length) m.at = pick(lands);
         ev.push({ t: 'escape', id: m.id, at: m.at });
@@ -996,6 +997,14 @@ export function act(state, seatChar, action) {
       if (faces.includes('wound') && !faces.includes('shield') && !(p.char === 'bramblecap' && p.level >= 1)) {
         log(s, `${p.name} is wounded in the fight.`);
         loseLife(s, p, 1, ev);
+      }
+      // The Root King does not forgive: fail to bring it down and it kills you outright.
+      // No Shield, snare or Thorncap's guard saves the attacker.
+      if (m.kind === 'root-king' && m.hp > 0 && !escaped && s.monsters.includes(m) && !p.lost && s.phase === 'playing') {
+        ev.push({ t: 'kingKill', id: m.id, who: p.char });
+        ev.push({ t: 'strike', id: m.id, hit: [p.char] });
+        log(s, `The Root King survives the blow and crushes ${p.name}!`);
+        loseLife(s, p, p.lives, ev);
       }
       // A monster that survives (and is not caught in a snare) strikes back at everyone on or
       // beside its tile. A Shield in this attack protects the attacker; Thorncap shields the rest.

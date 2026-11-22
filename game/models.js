@@ -10,7 +10,7 @@ export const onFigureProblem = (fn) => { reportProblem = fn; };
 // dimension) with its feet at y=0, facing +z.
 // A sculpted figure in the game's own format (see tools/tofigure.mjs): quantized geometry in a
 // plain JS module plus WebP texture files. It needs no WebAssembly, data: or blob: URLs, which a
-// sandboxed page may refuse. `url` is like "assets/figures/mushy.js?v=22"; the Low graphics
+// sandboxed page may refuse. `url` is like "assets/figures/mushy.js?v=23"; the Low graphics
 // setting asks for "assets/figures/lite/mushy.js?..." and gets the smaller textures.
 const texLoader = new THREE.TextureLoader();
 const sculptCache = {};

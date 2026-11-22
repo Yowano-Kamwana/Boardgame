@@ -1,15 +1,15 @@
 // Rootbound playtest app: lobby, HUD, and the glue between the rules engine, sync and 3D table.
-import { createBoard } from './board3d.js?v=22';
-import { createNet } from './net.js?v=22';
-import { portraitDataURL, onFigureProblem } from './models.js?v=22';
-import { botAction } from './ai.js?v=22';
-import * as SND from './sound.js?v=22';
-import { showGallery } from './gallery.js?v=22';
-import * as E from './engine.js?v=22';
+import { createBoard } from './board3d.js?v=23';
+import { createNet } from './net.js?v=23';
+import { portraitDataURL, onFigureProblem } from './models.js?v=23';
+import { botAction } from './ai.js?v=23';
+import * as SND from './sound.js?v=23';
+import { showGallery } from './gallery.js?v=23';
+import * as E from './engine.js?v=23';
 import {
   CARDS, CHARACTERS, BIOMES, RES, RES_LABEL, WEATHER, SCENARIOS, MONSTERS, UPGRADES, HORROR_MAX, DIRS,
   RISK_LABEL, STACK, WORKSHOP, CRAFTS, MODES, OUTPOST, QUESTS, QUESTS_TO_WIN, QUEST_MAX_ACTIVE, NIGHT, CHAIN, CHAIN_BIOME,
-} from './data.js?v=22';
+} from './data.js?v=23';
 
 const A = 'assets/';
 const $ = (s) => document.querySelector(s);
@@ -569,6 +569,7 @@ async function narrate(e, s) {
     case 'outpost': toast(`${who(e.who)} raises an Outpost`, 'good'); break;
     case 'outpostLost': toast(e.by ? 'A monster tramples an Outpost flat!' : 'Corruption swallows an Outpost!', 'bad'); break;
     case 'stuck': toast('A snared monster thrashes but cannot move', 'good'); break;
+    case 'kingKill': toast(`The Root King survives and crushes ${who(e.who)}! Only a killing blow is safe.`, 'bad'); break;
     case 'strike': toast(`It strikes back at ${e.hit.map(who).join(', ')}!`, 'bad'); break;
     case 'wander': toast(`${who(e.who)} wanders the forest, Lost\u2026 catch them to bring them back`, 'bad'); break;
     case 'stir': toast(e.phase === 'night' ? 'Night deepens. The forest stirs…' : 'The forest stirs…', 'bad'); break;
@@ -1000,7 +1001,8 @@ function showGuide() {
       h('li', {}, 'Attack a monster on your tile or the next one: roll 1 risk die, plus 1 for each friend on or beside its tile (Bramblecap adds 1 more). Hit = 1 damage, Double Hit = 2. Fighting from next door spares you the corruption on its tile.'),
       h('li', {}, 'A monster that survives your attack strikes back: everyone on or beside its tile loses a life (a Shield you rolled protects you; Thorncap takes the blow for friends). A monster caught in a snare cannot strike back.'),
       h('li', {}, 'A Wound costs you a life unless you also rolled a Shield. Panic makes you flee to a nearby tile.'),
-      h('li', {}, 'Defeating a monster earns 1 Reputation and 1 Essence. Defeating the Root King wins the game.')),
+      h('li', {}, 'Defeating a monster earns 1 Reputation and 1 Essence. Defeating the Root King wins the game.'),
+      h('li', {}, 'Attacking the Root King is all or nothing: if your attack does not bring it down, it kills you outright (you become Lost). No Shield, snare or Thorncap can save you. Gather friends beside it first: each adds a die.')),
     h('h3', {}, 'Losing things'),
     h('ul', {},
       h('li', {}, 'If you must lose Food and have none, you lose a life. Missing anything else costs 1 Reputation.'),

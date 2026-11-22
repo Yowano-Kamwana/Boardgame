@@ -35,7 +35,7 @@ export const OUTPOST = { cost: { wood: 2, metal: 1 }, capacity: 6 };
 export const CHARACTERS = {
   mushy: {
     name: 'Mushy', role: 'The Scout', quote: 'Every path has a story.',
-    cap: '#c8352b', spots: '#f6efe2', tunic: '#3f6b4a', base: '#c8352b', model: 'figures/mushy.js?v=22', turn: -1.66,
+    cap: '#c8352b', spots: '#f6efe2', tunic: '#3f6b4a', base: '#c8352b', model: 'figures/mushy.js?v=23', turn: -1.66,
     ability: 'Trailblazer', abilityText: 'The first difficult hex you enter each turn costs only 1 movement.',
     levels: [
       { name: 'Long Strides', text: '+1 movement whenever you set out.', cost: { food: 2, essence: 1 }, rep: 2 },
@@ -44,7 +44,7 @@ export const CHARACTERS = {
   },
   bramblecap: {
     name: 'Bramblecap', role: 'The Trapper', quote: 'The forest teaches those who listen.',
-    cap: '#a8642c', spots: '#e9c99a', tunic: '#5b6b2f', base: '#d08a3a', model: 'figures/bramblecap.js?v=22', turn: -1.66,
+    cap: '#a8642c', spots: '#e9c99a', tunic: '#5b6b2f', base: '#d08a3a', model: 'figures/bramblecap.js?v=23', turn: -1.66,
     ability: 'Snares Ready', abilityText: 'Rolls 1 extra attack die when fighting a monster.',
     levels: [
       { name: 'Hunter\u2019s Hide', text: 'Wound results never hurt you when you attack.', cost: { wood: 2, metal: 1 }, rep: 2 },
@@ -53,7 +53,7 @@ export const CHARACTERS = {
   },
   morella: {
     name: 'Morella', role: 'The Dreamwalker', quote: 'There is more than what we see.',
-    cap: '#6b3f8f', spots: '#c9b2e6', tunic: '#3d2f5c', base: '#8f5fc4', model: 'figures/morella.js?v=22', turn: -2.06,
+    cap: '#6b3f8f', spots: '#c9b2e6', tunic: '#3d2f5c', base: '#8f5fc4', model: 'figures/morella.js?v=23', turn: -2.06,
     ability: 'Dreamsight', abilityText: 'When you Search, draw 2 Discovery cards and keep 1.',
     levels: [
       { name: 'Lucid Path', text: 'Your first Search each turn costs no decision.', cost: { essence: 2, crystal: 1 }, rep: 2 },
@@ -62,7 +62,7 @@ export const CHARACTERS = {
   },
   sporewick: {
     name: 'Sporewick', role: 'The Alchemist', quote: 'Curiosity builds a brighter world.',
-    cap: '#d9a520', spots: '#f3df9a', tunic: '#6b5a2a', base: '#e2b93b', model: 'figures/sporewick.js?v=22', turn: -1.27,
+    cap: '#d9a520', spots: '#f3df9a', tunic: '#6b5a2a', base: '#e2b93b', model: 'figures/sporewick.js?v=23', turn: -1.27,
     ability: 'Field Tonics', abilityText: 'Can Rest anywhere, not only at the Workshop. Cleanse costs no Essence.',
     levels: [
       { name: 'Remedy', text: 'Spend a decision to heal a friend on your tile by 1 life.', cost: { crystal: 1, essence: 2 }, rep: 2 },
@@ -71,7 +71,7 @@ export const CHARACTERS = {
   },
   thorncap: {
     name: 'Thorncap', role: 'The Guardian', quote: 'Stand behind me.',
-    cap: '#4f7a3a', spots: '#c9d98f', tunic: '#5a4a3a', base: '#6f9a3e', model: 'figures/thorncap.js?v=22', turn: -1.27,
+    cap: '#4f7a3a', spots: '#c9d98f', tunic: '#5a4a3a', base: '#6f9a3e', model: 'figures/thorncap.js?v=23', turn: -1.27,
     ability: 'Shield Wall', abilityText: 'When a monster steps onto your tile, only you get hurt. Friends beside you are spared.',
     levels: [
       { name: 'Stalwart', text: 'Rolls 1 extra attack die when fighting a monster.', cost: { metal: 2, wood: 1 }, rep: 2 },
@@ -96,12 +96,12 @@ export const RISK_FACES = ['hit', 'hit', 'double', 'shield', 'wound', 'panic'];
 export const RISK_LABEL = { hit: 'Hit', double: 'Double Hit', shield: 'Shield', wound: 'Wound', panic: 'Panic' };
 
 export const MONSTERS = {
-  'corrupted-wolf':    { name: 'Corrupted Wolf',    hp: 2, card: 'corrupted-wolf', model: 'figures/corrupted-wolf.js?v=22', turn: -2.84, size: 0.8 },
+  'corrupted-wolf':    { name: 'Corrupted Wolf',    hp: 2, card: 'corrupted-wolf', model: 'figures/corrupted-wolf.js?v=23', turn: -2.84, size: 0.8 },
   // model: sculpted figure (Tripo); size: its largest dimension on the table; turn: yaw so it faces the players
-  'blighted-mushroom': { name: 'Blighted Mushroom', hp: 3, card: 'blighted-mushroom', model: 'figures/blighted-mushroom.js?v=22', turn: 0, size: 0.78 },
-  'shadow-stalker':    { name: 'Shadow Stalker',    hp: 4, card: 'shadow-stalker', model: 'figures/shadow-stalker.js?v=22', turn: -0.49, size: 0.9 },
-  'crystal-husk':      { name: 'Crystal Husk',      hp: 4, card: 'crystal-husk', model: 'figures/crystal-husk.js?v=22', turn: -1.27, size: 0.8 },
-  'root-king':         { name: 'The Root King',     hp: 6, card: 'root-king', boss: true, model: 'figures/root-king.js?v=22', turn: -1.27, size: 1.3 },
+  'blighted-mushroom': { name: 'Blighted Mushroom', hp: 3, card: 'blighted-mushroom', model: 'figures/blighted-mushroom.js?v=23', turn: 0, size: 0.78 },
+  'shadow-stalker':    { name: 'Shadow Stalker',    hp: 4, card: 'shadow-stalker', model: 'figures/shadow-stalker.js?v=23', turn: -0.49, size: 0.9 },
+  'crystal-husk':      { name: 'Crystal Husk',      hp: 4, card: 'crystal-husk', model: 'figures/crystal-husk.js?v=23', turn: -1.27, size: 0.8 },
+  'root-king':         { name: 'The Root King',     hp: 6, card: 'root-king', boss: true, model: 'figures/root-king.js?v=23', turn: -1.27, size: 1.3 },
 };
 // Spawn order: early monsters are weaker.
 export const SPAWN_ORDER = ['corrupted-wolf', 'blighted-mushroom', 'corrupted-wolf', 'shadow-stalker', 'crystal-husk', 'blighted-mushroom', 'shadow-stalker', 'crystal-husk'];
