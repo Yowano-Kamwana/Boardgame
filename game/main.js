@@ -1,15 +1,15 @@
 // Rootbound playtest app: lobby, HUD, and the glue between the rules engine, sync and 3D table.
-import { createBoard } from './board3d.js?v=20';
-import { createNet } from './net.js?v=20';
-import { portraitDataURL } from './models.js?v=20';
-import { botAction } from './ai.js?v=20';
-import * as SND from './sound.js?v=20';
-import { showGallery } from './gallery.js?v=20';
-import * as E from './engine.js?v=20';
+import { createBoard } from './board3d.js?v=21';
+import { createNet } from './net.js?v=21';
+import { portraitDataURL, onFigureProblem } from './models.js?v=21';
+import { botAction } from './ai.js?v=21';
+import * as SND from './sound.js?v=21';
+import { showGallery } from './gallery.js?v=21';
+import * as E from './engine.js?v=21';
 import {
   CARDS, CHARACTERS, BIOMES, RES, RES_LABEL, WEATHER, SCENARIOS, MONSTERS, UPGRADES, HORROR_MAX, DIRS,
   RISK_LABEL, STACK, WORKSHOP, CRAFTS, MODES, OUTPOST, QUESTS, QUESTS_TO_WIN, QUEST_MAX_ACTIVE, NIGHT, CHAIN, CHAIN_BIOME,
-} from './data.js?v=20';
+} from './data.js?v=21';
 
 const A = 'assets/';
 const $ = (s) => document.querySelector(s);
@@ -90,7 +90,7 @@ function showSettings() {
     h('h2', {}, 'Settings'),
     h('div', { class: 'set-group' }, h('div', { class: 'eyebrow' }, 'Sound'),
       sw('Sound effects', 'Dice, cards, footsteps and monsters', 'sfx', applySound),
-      sw('Forest ambience', 'Wind, birdsong by day, crickets at night', 'ambience', applySound),
+      sw('Forest ambience', 'Wind, birdsong by day, a distant owl at night', 'ambience', applySound),
       sw('Music', 'A quiet score for the expedition', 'music', applySound)),
     h('div', { class: 'set-group' }, h('div', { class: 'eyebrow' }, 'The table'),
       sw('Board atmosphere', 'Fog over unexplored land, fireflies and spores, dust, pulsing corruption', 'atmosphere', applyLook),
@@ -1015,4 +1015,5 @@ function showGuide() {
 
 // ------------------------------------------------------------------ boot
 showTitle();
+onFigureProblem((kind, url, err) => NET?.remote?.report?.({ kind, url, quality: look.quality, error: err ? String(err.message || err).slice(0, 300) : '' }));
 createNet().then((n) => { NET = n; if (!gameId) showTitle(); }).catch(() => { NET = { remote: null, local: null }; showTitle(); });

@@ -1,17 +1,62 @@
 // Procedural 3D miniatures for Rootbound, modelled on the concept art.
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // ------------------------------------------------------------ sculpted figures (Tripo GLBs)
-const gltf = new GLTFLoader();
-gltf.setMeshoptDecoder(MeshoptDecoder);
 const figureCache = {};
+let reportProblem = () => {};
+let loadedOnce = false;
+export const onFigureProblem = (fn) => { reportProblem = fn; };
 // Loads a figure, scales it to stand `height` tall (or, with fitMax, to that largest
 // dimension) with its feet at y=0, facing +z.
+// A sculpted figure in the game's own format (see tools/tofigure.mjs): quantized geometry in a
+// plain JS module plus WebP texture files. It needs no WebAssembly, data: or blob: URLs, which a
+// sandboxed page may refuse. `url` is like "assets/figures/mushy.js?v=21"; the Low graphics
+// setting asks for "assets/figures/lite/mushy.js?..." and gets the smaller textures.
+const texLoader = new THREE.TextureLoader();
+const sculptCache = {};
+function loadSculpt(url) {
+  const lite = url.includes('/figures/lite/');
+  const geoUrl = url.replace('/figures/lite/', '/figures/');
+  const [file, query = ''] = geoUrl.split('?');
+  const name = file.split('/').pop().replace(/\.js$/, '');
+  const dir = file.slice(0, file.lastIndexOf('/') + 1) + (lite ? 'lite/' : '');
+  const tex = (k, srgb) => new Promise((res) => texLoader.load(`${dir}${name}-${k}.webp${query ? '?' + query : ''}`, (t) => {
+    t.flipY = false; if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; res(t);
+  }, undefined, () => res(null)));
+  return sculptCache[url] ||= Promise.all([import(new URL(geoUrl, document.baseURI).href), tex('c', true), tex('n'), tex('r')]).then(([mod, map, normalMap, rm]) => {
+    const { meta, data } = mod;
+    const bin = atob(data); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    let o = 0; const take = (n) => { const b = bytes.buffer.slice(o, o + n); o += n; return b; };
+    const qp = new Uint16Array(take(meta.sizes[0]), 0, meta.v * 3);
+    const qn = new Int8Array(take(meta.sizes[1]), 0, meta.v * 4);
+    const qu = new Uint16Array(take(meta.sizes[2]), 0, meta.v * 2);
+    const qi = meta.i32 ? new Uint32Array(take(meta.sizes[3]), 0, meta.i) : new Uint16Array(take(meta.sizes[3]), 0, meta.i);
+    const pos = new Float32Array(meta.v * 3), nrm = new Float32Array(meta.v * 3), uv = new Float32Array(meta.v * 2);
+    for (let i = 0; i < meta.v; i++) {
+      for (let a = 0; a < 3; a++) {
+        pos[i * 3 + a] = meta.min[a] + (qp[i * 3 + a] / 65535) * (meta.max[a] - meta.min[a]);
+        nrm[i * 3 + a] = qn[i * 4 + a] / 127;
+      }
+      for (let a = 0; a < 2; a++) uv[i * 2 + a] = meta.umin[a] + (qu[i * 2 + a] / 65535) * (meta.umax[a] - meta.umin[a]);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setIndex(new THREE.BufferAttribute(qi, 1));
+    const mat = new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap: rm, metalnessMap: rm, roughness: 1, metalness: 1, side: THREE.DoubleSide });
+    if (!rm) { mat.roughness = 0.8; mat.metalness = 0; }
+    const mesh = new THREE.Mesh(geo, mat);
+    const scene = new THREE.Group(); scene.add(mesh);
+    return { scene };
+  });
+}
+
 export function loadFigure(url, height = 0.86, fitMax = false) {
   const key = url + (fitMax ? '|max' : '') + height;
-  figureCache[key] ||= new Promise((resolve, reject) => gltf.load(url, (g) => {
+  const source = loadSculpt(url);
+  figureCache[key] ||= source.then((g) => {
     const root = g.scene;
     root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     const box = new THREE.Box3().setFromObject(root);
@@ -22,8 +67,10 @@ export function loadFigure(url, height = 0.86, fitMax = false) {
     root.position.set(-c.x * s, -box.min.y * s, -c.z * s);
     const wrap = new THREE.Group();
     wrap.add(root);
-    resolve(wrap);
-  }, undefined, reject));
+    if (!loadedOnce) { loadedOnce = true; reportProblem('loaded', url); }
+    return wrap;
+  });
+  figureCache[key].catch((e) => { console.error('Figure failed to load:', url, e); reportProblem('figure', url, e); });
   return figureCache[key].then((w) => w.clone(true));
 }
 

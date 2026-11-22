@@ -1,10 +1,10 @@
 // The 3D tabletop: tiles, miniatures, dice, camera.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { makeMushroomfolk, makeMonster, makeDie, glowSprite, makeBase, loadFigure, monsterBase } from './models.js?v=20';
-import { BIOMES, CHARACTERS, DIRS, MONSTERS } from './data.js?v=20';
-import { allKeys, parse, useBoard, boardRadius } from './engine.js?v=20';
-import { veinTexture, hashKey, makeBlob, makeFog, createParticles, makeDust } from './atmosphere.js?v=20';
+import { makeMushroomfolk, makeMonster, makeDie, glowSprite, makeBase, loadFigure, monsterBase } from './models.js?v=21';
+import { BIOMES, CHARACTERS, DIRS, MONSTERS } from './data.js?v=21';
+import { allKeys, parse, useBoard, boardRadius } from './engine.js?v=21';
+import { veinTexture, hashKey, makeBlob, makeFog, createParticles, makeDust } from './atmosphere.js?v=21';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -390,7 +390,7 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
   }
 
   // Low quality uses the light figures in models/lite/.
-  const modelPath = (m) => (opts.quality === 'high' ? m : m.replace('models/', 'models/lite/'));
+  const modelPath = (m) => (opts.quality === 'high' ? m : m.replace('figures/', 'figures/lite/'));
 
   function syncPieces(state) {
     for (const p of state.players || []) {

@@ -1,5 +1,5 @@
 // Rootbound sound: everything is synthesised with Web Audio, so there are no files to download.
-// Three separate switches: effects, ambience (wind, birds, crickets) and music.
+// Three separate switches: effects, ambience (wind, birds, an owl at night) and music.
 // Audio can only start after a tap, so init() is called from the first pointer or key press.
 
 let ctx = null, master, sfxBus, ambBus, musBus, noiseBuf;
@@ -21,7 +21,7 @@ export function init() {
   const comp = ctx.createDynamicsCompressor();
   master.connect(comp); comp.connect(ctx.destination);
   sfxBus = bus(opts.sfx ? 0.9 : 0);
-  ambBus = bus(opts.ambience ? 0.5 : 0);
+  ambBus = bus(opts.ambience ? 0.35 : 0);
   musBus = bus(opts.music ? 0.32 : 0);
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const d = noiseBuf.getChannelData(0);
@@ -40,7 +40,7 @@ export function setOptions(next) {
   if (!ctx) return;
   const t = now();
   sfxBus.gain.setTargetAtTime(opts.sfx ? 0.9 : 0, t, 0.05);
-  ambBus.gain.setTargetAtTime(opts.ambience ? 0.5 : 0, t, 0.3);
+  ambBus.gain.setTargetAtTime(opts.ambience ? 0.35 : 0, t, 0.3);
   musBus.gain.setTargetAtTime(opts.music ? 0.32 : 0, t, 0.3);
 }
 export function setPhase(p) { phase = p === 'night' ? 'night' : 'day'; }
@@ -137,12 +137,13 @@ function startAmbience() {
     timers.push(setTimeout(gust, 2500 + Math.random() * 3000));
   };
   gust();
-  // birds by day, crickets by night
+  // birds by day, an owl by night
   const critters = () => {
     if (ctx.state === 'running' && opts.ambience) {
-      if (phase === 'day') bird(); else cricket();
+      if (phase === 'day') bird(); else if (Math.random() < 0.6) owl();
     }
-    timers.push(setTimeout(critters, phase === 'day' ? 1800 + Math.random() * 4500 : 900 + Math.random() * 1600));
+    // Sparse: birds every 4-10 s by day, an owl now and then at night.
+    timers.push(setTimeout(critters, phase === 'day' ? 4000 + Math.random() * 6000 : 9000 + Math.random() * 12000));
   };
   critters();
 }
@@ -153,17 +154,10 @@ function bird() {
     tone(ambBus, { type: 'sine', f: base * (1 + Math.random() * 0.2), f2: base * (0.7 + Math.random() * 0.5), t: at, a: 0.01, d: 0.07, v: 0.035 });
   }
 }
-function cricket() {
-  const t = now(), f = 4300 + Math.random() * 500;
-  for (let i = 0; i < 3; i++) {
-    const o = ctx.createOscillator(), am = ctx.createOscillator(), ag = ctx.createGain(), g = ctx.createGain();
-    o.frequency.value = f; am.frequency.value = 55; ag.gain.value = 0.5;
-    am.connect(ag); ag.connect(g.gain);
-    o.connect(g); g.connect(ambBus);
-    const at = t + i * 0.32;
-    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(0.012, at + 0.03); g.gain.linearRampToValueAtTime(0, at + 0.18);
-    o.start(at); am.start(at); o.stop(at + 0.2); am.stop(at + 0.2);
-  }
+// A distant owl: two soft, low hoots.
+function owl() {
+  const t = now(), f = 370 + Math.random() * 40;
+  [0, 0.42].forEach((d, i) => tone(ambBus, { type: 'sine', f: f * (i ? 0.94 : 1), f2: f * (i ? 0.86 : 0.93), t: t + d, a: 0.06, d: i ? 0.55 : 0.3, v: 0.05 }));
 }
 
 // ------------------------------------------------------------------ music

@@ -3,8 +3,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { loadFigure } from './models.js?v=20';
-import { CHARACTERS, MONSTERS } from './data.js?v=20';
+import { loadFigure } from './models.js?v=21';
+import { CHARACTERS, MONSTERS } from './data.js?v=21';
 
 const FIGURES = [
   ...Object.entries(CHARACTERS).filter(([, c]) => c.model).map(([id, c]) => ({ id, name: c.name, sub: `${c.role} · Mushroomfolk`, model: c.model, turn: c.turn || 0, fit: false })),
@@ -78,7 +78,7 @@ export function showGallery({ assetBase, quality = 'high', version = '' }) {
     dots.append(d);
   });
   let index = 0, token = 0;
-  const path = (m) => assetBase + (quality === 'high' ? m : m.replace('models/', 'models/lite/')) + version;
+  const path = (m) => assetBase + (quality === 'high' ? m : m.replace('figures/', 'figures/lite/')) + version;
   async function show(i) {
     index = (i + FIGURES.length) % FIGURES.length;
     const f = FIGURES[index], my = ++token;

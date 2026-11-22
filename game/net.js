@@ -86,6 +86,11 @@ async function connect(local) {
       throw new Error('Another player is moving. Try again in a moment.');
     },
     async remove(id) { await db.doc(`games/${id}`).delete(); },
+    // Small diagnostics (which figures load, and why one fails) so problems can be fixed remotely.
+    async report(entry) {
+      if (canWrite === false) return;
+      try { await db.doc(`diag/${Date.now().toString(36)}-${tabId}`).set({ ...entry, at: Date.now(), ua: navigator.userAgent.slice(0, 160) }); } catch { /* best effort */ }
+    },
   };
   return { remote, local };
 }
