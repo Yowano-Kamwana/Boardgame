@@ -943,5 +943,6 @@ export function createBoard(container, { assetBase = 'assets/', onHexClick, onHe
     camera.position.set(0, 8.6 * k, 11.2 * k);
   }
 
-  return { drawCard, setOptions, setState, play, setHighlights, focus, resetView, rollDice, clearDice, get state() { return current; } };
+  // `cine` hands the camera to a scripted film (tools/film); the game itself never uses it.
+  return { cine: () => ({ camera, controls, scene, renderer }), drawCard, setOptions, setState, play, setHighlights, focus, resetView, rollDice, clearDice, get state() { return current; } };
 }
