@@ -61,8 +61,10 @@ def piece(src, length, outp):
                     '-crf', '18', '-pix_fmt', 'yuv420p', outp], check=True)
 
 parts, audio_parts, t = [], [], 0.0
+starts = []
 for i in range(1, 15):
     v = vo(i); vlen = dur(v)
+    starts.append(round(t, 3))
     length = max(LEAD + vlen + TAIL, MIN_LEN.get(i, 0))
     fixed = sum(s for _, s in SCENES[i] if s is not None and s >= 1)
     rest = length - fixed
@@ -105,4 +107,6 @@ else:
 audio = os.path.join(tmp, 'audio.m4a')
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', *args, '-filter_complex', fc, '-map', outlabel, '-c:a', 'aac', '-b:a', '192k', audio], check=True)
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', video, '-i', audio, '-c:v', 'copy', '-c:a', 'copy', '-shortest', '-movflags', '+faststart', out], check=True)
+import json
+json.dump({'starts': starts, 'total': total}, open(os.path.splitext(out)[0] + '.scenes.json', 'w'))
 print(f'done: {out}  {total:.1f}s')
