@@ -1,4 +1,5 @@
 <title>Rootbound Tutorial</title>
+<link rel="artifact-thumbnail" href="thumb.jpg">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
@@ -92,7 +93,7 @@ footer b { color: var(--ink-dim); font-weight: 500; }
 <div class="wrap">
   <header>
     <div>
-      <div class="eyebrow">How to play · 4 minutes</div>
+      <div class="eyebrow">How to play &middot; 4 minutes</div>
       <h1>Rootbound</h1>
       <p class="lede">A guided tour of the Everdeep: the heroes, the board, a full turn, and how to stop the Root King before he wakes.</p>
     </div>
@@ -124,8 +125,8 @@ footer b { color: var(--ink-dim); font-weight: 500; }
   </section>
 
   <footer>
-    <span>Narrated by <b>George</b> · Music: <b>Aurora’s Embrace</b> by Charlvera</span>
-    <span>Rootbound · Discover · Survive · Invent · Together</span>
+    <span>Narrated by <b>George</b> &middot; Music: <b>Aurora&rsquo;s Embrace</b> by Charlvera</span>
+    <span>Rootbound &middot; Discover &middot; Survive &middot; Invent &middot; Together</span>
   </footer>
 </div>
 
@@ -178,7 +179,7 @@ footer b { color: var(--ink-dim); font-weight: 500; }
   function now() { const c = chapters[cur]; return c ? c.start + (vids[active].currentTime || 0) : 0; }
   function mark() {
     document.querySelectorAll('.ch').forEach((el, i) => el.setAttribute('aria-current', String(i === cur)));
-    if (chapters[cur]) $('now').textContent = chapters[cur].n + ' · ' + chapters[cur].title;
+    if (chapters[cur]) $('now').textContent = chapters[cur].n + ' \u00b7 ' + chapters[cur].title;
   }
   function paint() {
     const t = now(), f = total ? t / total : 0;

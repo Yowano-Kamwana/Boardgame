@@ -223,7 +223,7 @@ shots.cleanse = async (ms) => {
   let s = newGame(['sporewick', 'morella']);
   reveal(s, [...ring(1), ...ring(2)]);
   const k = ring(1)[4]; s.tiles[k].corrupted = true; if (s.tiles[k].biome === 'corrupted') s.tiles[k].biome = 'forest';
-  s.players[0].at = k; s.players[0].turn.fueled = true; s.players[1].at = ring(1)[3];
+  s.players.forEach((pl) => { pl.bag.essence = 2; }); s.players[0].at = k; s.players[0].turn.fueled = true; s.players[1].at = ring(1)[3];
   s.horror = 7;
   await freshBoard(s);
   const p = hexPos(k);

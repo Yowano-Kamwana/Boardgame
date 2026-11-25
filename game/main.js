@@ -327,6 +327,8 @@ function showTitle() {
     item('The Mushroomfolk', 'Meet the five inventors', () => openDrawer('The Mushroomfolk', folk)),
     item('The Figures', 'See every miniature up close', () => showGallery({ assetBase: A, quality: look.quality })),
     item('How to Play', 'The rules of the Everdeep', showGuide),
+    h('a', { class: 'm-item', href: 'https://claude.ai/artifact/EMZoRdUwXmssEnGprrYYQS', target: '_blank', rel: 'noopener', style: 'text-decoration:none;box-sizing:border-box' },
+      h('span', { class: 'm-gem', 'aria-hidden': 'true' }), h('span', { class: 'm-text' }, h('span', { class: 'm-label' }, 'Watch the Tutorial'), h('span', { class: 'm-sub' }, 'A 4-minute narrated tour'))),
     item('Settings', 'Sound, music and graphics', showSettings));
   const stage = h('div', { class: 'hero-stage', 'aria-hidden': 'true' },
     h('img', { class: 'hero-art', src: `${A}ui/cover-hd.jpg`, alt: '' }),

@@ -1,0 +1,61 @@
+{
+ "total": 222.33,
+ "chapters": [
+  {
+   "n": 1,
+   "title": "The Everdeep",
+   "start": 0.0,
+   "length": 25.32,
+   "file": "ch1.mp4",
+   "poster": "ch1.jpg"
+  },
+  {
+   "n": 2,
+   "title": "The Goal & the Heroes",
+   "start": 25.32,
+   "length": 40.28,
+   "file": "ch2.mp4",
+   "poster": "ch2.jpg"
+  },
+  {
+   "n": 3,
+   "title": "The Board & Your Turn",
+   "start": 65.59,
+   "length": 41.53,
+   "file": "ch3.mp4",
+   "poster": "ch3.jpg"
+  },
+  {
+   "n": 4,
+   "title": "Search, Gather, Build",
+   "start": 107.12,
+   "length": 30.19,
+   "file": "ch4.mp4",
+   "poster": "ch4.jpg"
+  },
+  {
+   "n": 5,
+   "title": "Corruption & Horror",
+   "start": 137.32,
+   "length": 25.14,
+   "file": "ch5.mp4",
+   "poster": "ch5.jpg"
+  },
+  {
+   "n": 6,
+   "title": "Fight, Cleanse, Fear",
+   "start": 162.46,
+   "length": 27.4,
+   "file": "ch6.mp4",
+   "poster": "ch6.jpg"
+  },
+  {
+   "n": 7,
+   "title": "The Root King & Victory",
+   "start": 189.86,
+   "length": 32.48,
+   "file": "ch7.mp4",
+   "poster": "ch7.jpg"
+  }
+ ]
+}
